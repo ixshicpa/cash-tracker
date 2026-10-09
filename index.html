@@ -153,9 +153,9 @@ const FIREBASE_CONFIG = window.FIREBASE_CONFIG || {
   messagingSenderId:"706968150921",
   appId:"1:706968150921:web:e25fb80011714f889cb758"
 };
-/* App Check (reCAPTCHA v3): proves requests come from this website. Paste the reCAPTCHA v3 SITE key here.
+/* App Check (Fraud Defense / reCAPTCHA Enterprise): proves requests come from this website. Paste the SITE key here.
    Leave it empty to run without App Check. */
-const APPCHECK_SITE_KEY = '';
+const APPCHECK_SITE_KEY = '6LdyWeYtAAAAAAsoZzyTKM_zoKGjrKNBUyjEO2Eg';
 const DEMO = /[?&]demo\b/.test(location.search);
 const C = {users:'cash_users', banks:'cash_banks', txns:'cash_txns', audit:'cash_audit', settings:'cash_settings'};
 
@@ -187,18 +187,24 @@ function errMsg(e){
   if(c.includes('unavailable')||c.includes('failed-precondition')&&/offline/i.test(e.message||''))return 'No connection to the database. Check the internet and try again.';
   return (e&&e.message)||String(e);
 }
-function csvDownload(name,rows){
-  const esc=v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
-  const blob=new Blob(['﻿'+rows.map(r=>r.map(esc).join(',')).join('\r\n')],{type:'text/csv'});
+function saveFile(name,blob){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();
-  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+}
+/* CSV export. Text that starts with = + - @ (or a tab / line break) gets a leading apostrophe so Excel
+   shows it as text instead of running it as a formula. Plain numbers like -150.00 are left as numbers. */
+function csvDownload(name,rows){
+  const esc=v=>{v=v==null?'':String(v);
+    if(/^[=+\-@\t\r]/.test(v)&&!/^-?\d+(\.\d+)?$/.test(v))v="'"+v;
+    return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  saveFile(name,new Blob(['﻿'+rows.map(r=>r.map(esc).join(',')).join('\r\n')],{type:'text/csv'}));
 }
 
 /* ================= Data store: Firestore (live) or this-browser demo ================= */
 function makeRemote(){
   firebase.initializeApp(FIREBASE_CONFIG);
   if(APPCHECK_SITE_KEY){
-    try{firebase.appCheck().activate(new firebase.appCheck.ReCaptchaV3Provider(APPCHECK_SITE_KEY),true)}
+    try{firebase.appCheck().activate(new firebase.appCheck.ReCaptchaEnterpriseProvider(APPCHECK_SITE_KEY),true)}
     catch(e){console.error('App Check could not start',e)}
   }
   const db=firebase.firestore();
@@ -542,10 +548,11 @@ function vDash(){
   if(!banks.length)return `<div class="panel empty"><h2>No bank accounts yet</h2><p>${isAdmin()?'Add your bank accounts with their opening balances to start.':'The administrator has not added a bank account you can see.'}</p>${isAdmin()?'<button class="btn primary" data-act="bankNew">Add bank account</button>':''}</div>`;
   const T={bal:0,unrel:0,unrel_n:0,undep:0,undep_n:0};for(const b of banks)for(const k in T)T[k]+=b[k]||0;
   const proj=T.bal-T.unrel+T.undep;
+  const age=backupAge(),remind=isAdmin()&&(age==null||age>=7)?`<div class="note row noprint" style="justify-content:space-between"><span>${age==null?'No backup has been downloaded yet.':`Last backup was ${age} days ago.`} Download one now and keep it in a safe place.</span><button class="btn sm" data-act="backup">Download backup</button></div>`:'';
   const openU=S.open.filter(t=>t.status==='unreleased'&&canSee(t.bank)).sort((a,b)=>a.date<b.date?-1:1).slice(0,6);
   const openD=S.open.filter(t=>t.status==='undeposited'&&canSee(t.bank)).sort((a,b)=>a.date<b.date?-1:1).slice(0,6);
   const mini=(rows,party)=>rows.length?`<table><tbody>${rows.map(t=>`<tr class="click" data-act="edit" data-id="${t.id}"><td class="small">${fd(t.date)}<br><span class="muted">${h(bankName(t.bank))}</span></td><td>${h(t.kind==='cheque'?('#'+(t.no||'')+' · '):'')}${h(t.payee||t.note||'')}</td><td class="n">${peso(t.amt)}<br><span class="small muted">${daysBetween(t.date,today())} days</span></td></tr>`).join('')}</tbody></table>`:'<div class="empty small">Nothing pending.</div>';
-  return `<div class="kpis">
+  return `${remind}<div class="kpis">
     <div class="kpi"><div class="l">Cash in bank · all accounts</div><div class="v">${peso(T.bal)}</div><div class="s">${banks.length} account(s)</div></div>
     <div class="kpi"><div class="l">Unreleased cheques</div><div class="v">${peso(T.unrel)}</div><div class="s">${T.unrel_n} cheque(s) on hand</div></div>
     <div class="kpi"><div class="l">Undeposited collections</div><div class="v">${peso(T.undep)}</div><div class="s">${T.undep_n} item(s) to deposit</div></div>
@@ -728,6 +735,10 @@ function vBanks(){
   <div class="panel"><h2>Company name</h2><form id="fOrg" class="row"><input type="text" name="org" value="${h(S.settings.org||'')}" style="flex:1"><button class="btn" type="submit">Save</button></form></div>
   <div class="panel"><h2>Check balances</h2><p class="muted small" style="margin-top:0">Re-adds every entry from scratch and compares with the totals shown on the dashboard. Use it if a total ever looks wrong. Best done when no one else is encoding.</p>
   <button class="btn" data-act="recalc">Check and fix balances</button></div></div>
+  <div class="panel"><h2>Backup</h2>
+    <p class="muted small" style="margin-top:0">Downloads everything in the tracker — bank accounts, all entries, users, customers, particulars and the activity log — as one file. Do it at least once a week and keep the file in a safe place (e.g. Google Drive). Passwords are not included.</p>
+    <div class="row"><button class="btn primary" data-act="backup">Download backup</button>
+    <span class="muted small">${S.settings.last_backup_at?`Last backup: ${fdt(S.settings.last_backup_at)} by ${h(S.settings.last_backup_by||'')}`:'No backup downloaded yet.'}</span></div></div>
   <div class="two">${['customers','particulars'].map(k=>{const q=S.ui[k==='customers'?'lcQ':'lpQ'].trim().toLowerCase();const all=S.lists[k]||[];const list=all.filter(x=>!q||x.toLowerCase().includes(q));
     return `<div class="panel"><h2>${k==='customers'?'Customers':'Particulars'} · ${all.length}</h2>
     <form class="row" data-list="${k}" id="fList_${k}" style="margin-bottom:8px"><input type="text" name="v" placeholder="Add ${LIST_LABEL[k]}" style="flex:1"><button class="btn" type="submit">Add</button></form>
@@ -781,6 +792,25 @@ async function deleteBank(){
     await Store.del(C.banks+'/'+b.id);logAudit('BANK_DELETE',`Deleted bank account ${b.name}`,b.id);closeDlg();toast('Bank account deleted.');
   }catch(e){toast(errMsg(e),true)}
 }
+/* Full backup: every cash_* record as one JSON file (bank accounts, entries, users' profiles, lists, settings,
+   activity log). Passwords are not in it — they live in Firebase Authentication. */
+async function downloadBackup(){
+  try{
+    toast('Preparing backup…');
+    const out={app:'cash-tracker',format:1,project:FIREBASE_CONFIG.projectId,created_at:nowISO(),created_by:S.user.email||S.user.name,collections:{}};
+    let n=0;
+    for(const c of [C.banks,C.txns,C.users,C.settings,C.audit]){
+      const rows=await Store.query(c,[]);n+=rows.length;
+      out.collections[c]=Object.fromEntries(rows.map(r=>[r.id,noId(r)]));
+    }
+    saveFile(`cash-tracker-backup-${today()}.json`,new Blob([JSON.stringify(out,null,1)],{type:'application/json'}));
+    const st=noId({...S.settings,last_backup_at:nowISO(),last_backup_by:S.user.name});
+    await Store.set(C.settings+'/main',st).catch(()=>{});
+    logAudit('BACKUP',`Downloaded a backup (${n} records)`);
+    toast(`Backup downloaded: ${n} records. Keep it somewhere safe (e.g. Google Drive).`);
+  }catch(e){toast(errMsg(e),true)}
+}
+function backupAge(){const t=S.settings.last_backup_at;return t?Math.floor((Date.now()-new Date(t).getTime())/864e5):null}
 async function recalc(silentFix){
   try{
     if(!silentFix)toast('Checking all entries…');
@@ -1241,6 +1271,7 @@ document.addEventListener('click',async e=>{
     case 'bankDel':deleteBank();break;
     case 'toggleInactive':S.ui.showInactive=el.checked;render();break;
     case 'recalc':recalc();break;
+    case 'backup':downloadBackup();break;
     case 'userNew':dlgUser(null);break;
     case 'userEdit':dlgUser(S.users.find(u=>u.id===id));break;
     case 'userReset':dlgReset(S.users.find(u=>u.id===id));break;
