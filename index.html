@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check-compat.js"></script>
 <style>
 :root{
   --bg:#eef2f1; --surface:#fff; --surface-2:#f6f8f8; --ink:#17262e; --muted:#5b6a72; --line:#d9e1df;
@@ -34,7 +35,7 @@ a{color:var(--accent)}
 .pos{color:var(--ok)}.neg{color:var(--bad)}
 header.top{background:var(--head);color:var(--on-head);position:sticky;top:0;z-index:20}
 .topbar{display:flex;align-items:center;gap:12px;padding:10px 16px;max-width:1280px;margin:0 auto}
-.brand{font-weight:700;font-size:16px;white-space:nowrap}.brand small{font-weight:400;opacity:.75;margin-left:6px}
+.brand{font-weight:700;font-size:16px;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}.topbar>*:not(.brand){flex-shrink:0}.brand small{font-weight:400;opacity:.75;margin-left:6px}
 .spacer{flex:1}
 .live{font-size:12px;display:inline-flex;align-items:center;gap:6px;opacity:.9;white-space:nowrap}
 .dot{width:8px;height:8px;border-radius:50%;background:#5fca93;display:inline-block}.dot.off{background:#e7ab4f}
@@ -60,7 +61,9 @@ input[type=text],input[type=password],input[type=date],input[type=number],input[
   border:1px solid var(--line);background:var(--surface);border-radius:var(--radius-sm);padding:7px 9px;min-width:0}
 input:focus,select:focus,textarea:focus,.btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:500}
-label.f>input,label.f>select,label.f>textarea{font-size:14px;color:var(--ink)}
+label.f>input,label.f>select,label.f>textarea{font-size:14px;color:var(--ink);width:100%}
+select{max-width:100%;text-overflow:ellipsis}
+.grid2>*,.grid3>*,label.f{min-width:0}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .span2{grid-column:span 2}
@@ -92,12 +95,24 @@ td input[type=date]{padding:4px 6px}
 .note.bad{background:var(--bad-soft);color:var(--bad)}
 #dlgwrap{position:fixed;inset:0;background:rgba(5,15,20,.5);display:none;align-items:flex-start;justify-content:center;z-index:50;overflow-y:auto;padding:24px 12px}
 #dlgwrap.open{display:flex}
-.dlg{background:var(--surface);border-radius:var(--radius);width:100%;max-width:620px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.dlg{background:var(--surface);border-radius:var(--radius);width:100%;max-width:640px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
 .dlg .acts{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px}
 .seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
 .seg label{border:1px solid var(--line);border-radius:18px;padding:5px 12px;cursor:pointer;font-weight:500;font-size:13px}
 .seg label{position:relative}.seg input{position:absolute;opacity:0;width:1px;height:1px;margin:0}.seg input:checked+span{color:var(--accent)}.seg label:has(input:focus-visible){outline:2px solid var(--accent)}
 .seg label:has(input:checked){background:var(--accent-soft);border-color:var(--accent)}
+.combo{position:relative;width:100%}
+.combo>input{width:100%;font-size:14px;color:var(--ink)}
+.combo-list{position:absolute;left:0;right:0;top:calc(100% + 2px);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:240px;overflow-y:auto;z-index:70;display:none;color:var(--ink);font-size:14px}
+.combo-list.open{display:block}
+.combo-opt{padding:8px 10px;cursor:pointer}.combo-opt.act,.combo-opt:hover{background:var(--accent-soft)}
+.combo-opt mark{background:none;color:var(--accent);font-weight:700}
+.combo-add{color:var(--accent);font-weight:600;border-top:1px solid var(--line)}
+.combo-empty{padding:8px 10px}
+.chiplist{display:flex;flex-direction:column;max-height:260px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--radius-sm)}
+.chiplist div{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line)}
+.chiplist div:last-child{border-bottom:0}
+td input.bd{padding:3px 5px;font-size:13px}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
 .t{background:var(--head);color:var(--on-head);padding:10px 16px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.25);max-width:90vw}
 .t.err{background:var(--bad);color:#fff}
@@ -137,6 +152,9 @@ const FIREBASE_CONFIG = window.FIREBASE_CONFIG || {
   messagingSenderId:"706968150921",
   appId:"1:706968150921:web:e25fb80011714f889cb758"
 };
+/* App Check (reCAPTCHA v3): proves requests come from this website. Paste the reCAPTCHA v3 SITE key here.
+   Leave it empty to run without App Check. */
+const APPCHECK_SITE_KEY = '';
 const DEMO = /[?&]demo\b/.test(location.search);
 const C = {users:'cash_users', banks:'cash_banks', txns:'cash_txns', audit:'cash_audit', settings:'cash_settings'};
 
@@ -164,7 +182,7 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
 function toast(msg,err){const t=document.createElement('div');t.className='t'+(err?' err':'');t.textContent=msg;$('#toast').appendChild(t);setTimeout(()=>t.remove(),err?6000:3200)}
 function errMsg(e){
   const c=String(e&&e.code||'');
-  if(c.includes('permission'))return 'Firestore refused the request (permission denied). Add the cash_* rules from the README in Firebase → Firestore → Rules.';
+  if(c.includes('permission'))return 'Firestore refused the request (permission denied). Check the cash_* Firestore rules, and if App Check is enforced, that this page has the right reCAPTCHA site key.';
   if(c.includes('unavailable')||c.includes('failed-precondition')&&/offline/i.test(e.message||''))return 'No connection to the database. Check the internet and try again.';
   return (e&&e.message)||String(e);
 }
@@ -178,6 +196,10 @@ function csvDownload(name,rows){
 /* ================= Data store: Firestore (live) or this-browser demo ================= */
 function makeRemote(){
   firebase.initializeApp(FIREBASE_CONFIG);
+  if(APPCHECK_SITE_KEY){
+    try{firebase.appCheck().activate(new firebase.appCheck.ReCaptchaV3Provider(APPCHECK_SITE_KEY),true)}
+    catch(e){console.error('App Check could not start',e)}
+  }
   const db=firebase.firestore();
   try{db.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}
   const q=(col,where=[],o={})=>{let r=db.collection(col);for(const w of where)r=r.where(w[0],w[1],w[2]);if(o.orderBy)r=r.orderBy(o.orderBy[0],o.orderBy[1]||'asc');if(o.limit)r=r.limit(o.limit);return r};
@@ -193,6 +215,8 @@ function makeRemote(){
     del(path){return db.doc(path).delete()},
     newId(col){return db.collection(col).doc().id},
     inc(n){return firebase.firestore.FieldValue.increment(n)},
+    addToList(path,...v){return db.doc(path).set({names:firebase.firestore.FieldValue.arrayUnion(...v)},{merge:true})},
+    removeFromList(path,v){return db.doc(path).set({names:firebase.firestore.FieldValue.arrayRemove(v)},{merge:true})},
     tx(fn){return db.runTransaction(T=>fn({
       async get(p){return wrap(await T.get(db.doc(p)))},
       set(p,d){T.set(db.doc(p),d)}, update(p,d){T.update(db.doc(p),d)}, del(p){T.delete(db.doc(p))}
@@ -223,6 +247,8 @@ function makeLocal(){
     async del(p){delete data[p];save();notify()},
     newId(){return Math.random().toString(36).slice(2,10)+Date.now().toString(36)},
     inc(n){return{__inc:n}},
+    async addToList(p,...v){const d=data[p]||(data[p]={names:[]});d.names=d.names||[];for(const x of v)if(!d.names.includes(x))d.names.push(x);save();notify()},
+    async removeFromList(p,v){if(data[p]&&data[p].names){data[p].names=data[p].names.filter(x=>x!==v);save();notify()}},
     async tx(fn){const backup=clone(data),ops=[];
       try{const r=await fn({get:async p=>one(p),set:(p,d)=>ops.push(['s',p,d]),update:(p,d)=>ops.push(['u',p,d]),del:p=>ops.push(['d',p])});
         for(const[t,p,d]of ops){if(t==='s')data[p]=clone(d);else if(t==='u')upd(p,d);else delete data[p]}
@@ -251,12 +277,12 @@ const hashSig=u=>String(u&&u.hash||'').slice(0,16);
 
 /* ================= State ================= */
 const S={
-  phase:'boot', user:null, banks:[], open:[], users:[], audit:[], settings:{org:'TS Laundry'},
+  phase:'boot', user:null, lists:{customers:[],particulars:[]}, banks:[], open:[], users:[], audit:[], settings:{org:'TS Laundry'},
   online:true, loaded:{banks:false,open:false},
   route:'dash', sub:{}, ledgerRows:null, regRows:null, dlg:null,
-  ui:{bank:'',q:'',sel:new Set(),drafts:{},bulkDate:today(),bulkRef:'',
+  ui:{bank:'',q:'',pay:'',sel:new Set(),drafts:{},bulkDate:today(),bulkRef:'',
       lBank:'',lFrom:monthStart(),lTo:today(),
-      rFrom:monthStart(),rTo:today(),rKind:'',rBank:'',rStatus:'',rQ:'', aQ:'', showInactive:false}
+      rFrom:monthStart(),rTo:today(),sBank:'',sFrom:monthStart(),sTo:today(),sQ:'',lcQ:'',lpQ:'',rKind:'',rBank:'',rStatus:'',rQ:'', aQ:'', showInactive:false}
 };
 const ROLES={ADMIN:'Administrator',ENCODER:'Encoder',VIEWER:'Viewer'};
 const isAdmin=()=>S.user&&S.user.role==='ADMIN';
@@ -265,6 +291,7 @@ const canSee=b=>isAdmin()||!S.user||!Array.isArray(S.user.banks)||S.user.banks.i
 const bankById=id=>S.banks.find(b=>b.id===id);
 const bankName=id=>{const b=bankById(id);return b?b.name:'(removed account)'};
 const visBanks=(all)=>S.banks.filter(b=>canSee(b.id)&&(all||b.active!==false));
+const DEFAULT_PARTICULARS=['Monthly Amortization','Service Charge'];
 const KIND={cheque:'Cheque',deposit:'Collection',debit:'Bank debit',credit:'Bank credit'};
 
 /* ================= Balance engine =================
@@ -273,17 +300,23 @@ const KIND={cheque:'Cheque',deposit:'Collection',debit:'Bank debit',credit:'Bank
    unrel/unrel_n = unreleased cheques, undep/undep_n = collections not yet deposited.
    Saving an entry applies (new effect − old effect) to the bank document inside one Firestore
    transaction, so the dashboard totals always match the entries, for every user, in real time. */
+/* Bank statement date: bd = the date the entry reflected in the bank (bdate, or the release / deposit /
+   entry date when no bank date was entered). null while unreleased, undeposited, "not yet in bank" or void.
+   bbal on the bank account = opening balance + everything that has reached the bank (by bd). */
+const bdOf=t=>(!t||t.status==='void'||!t.eff||t.bpend)?null:(t.bdate||t.eff);
+const KEYS=['bal','unrel','unrel_n','undep','undep_n','bbal'];
 function effect(t){
   if(!t||t.status==='void')return null;
-  const a=t.amt||0;
-  if(t.kind==='cheque')return t.status==='released'?{bank:t.bank,bal:-a}:{bank:t.bank,unrel:a,unrel_n:1};
-  if(t.kind==='deposit')return t.status==='deposited'?{bank:t.bank,bal:a}:{bank:t.bank,undep:a,undep_n:1};
-  if(t.kind==='debit')return{bank:t.bank,bal:-a};
-  if(t.kind==='credit')return{bank:t.bank,bal:a};
-  return null;
+  const a=t.amt||0,bb=t.bd?bankSign(t):0;let e=null;
+  if(t.kind==='cheque')e=t.status==='released'?{bal:-a}:{unrel:a,unrel_n:1};
+  else if(t.kind==='deposit')e=t.status==='deposited'?{bal:a}:{undep:a,undep_n:1};
+  else if(t.kind==='debit')e={bal:-a};
+  else if(t.kind==='credit')e={bal:a};
+  if(!e)return null;
+  e.bank=t.bank;if(bb)e.bbal=bb;return e;
 }
-function addEff(acc,e,sign){if(!e)return;const d=acc[e.bank]||(acc[e.bank]={});for(const k of['bal','unrel','unrel_n','undep','undep_n'])if(e[k])d[k]=(d[k]||0)+sign*e[k]}
-const bankSign=t=>(t.kind==='deposit'||t.kind==='credit')?t.amt:-t.amt;
+function addEff(acc,e,sign){if(!e)return;const d=acc[e.bank]||(acc[e.bank]={});for(const k of KEYS)if(e[k])d[k]=(d[k]||0)+sign*e[k]}
+function bankSign(t){return (t.kind==='deposit'||t.kind==='credit')?t.amt:-t.amt}
 function statusOf(kind,eff){return kind==='cheque'?(eff?'released':'unreleased'):kind==='deposit'?(eff?'deposited':'undeposited'):'posted'}
 
 /* changes: [{id, next (full doc or null to delete), rev (expected revision, omit for new)}] */
@@ -299,6 +332,7 @@ async function commit(changes,audit){
       }
       prevs.push(p);
     }
+    for(const c of changes)if(c.next){c.next={...c.next};if(c.next.bdate&&c.next.bdate===c.next.eff)c.next.bdate=null;c.next.bd=bdOf(c.next)}
     const delta={};
     changes.forEach((c,i)=>{addEff(delta,effect(prevs[i]),-1);addEff(delta,effect(c.next),1)});
     for(const b of Object.keys(delta)){if(!(await t.get(C.banks+'/'+b)))throw new Error('Bank account not found.')}
@@ -348,14 +382,16 @@ setInterval(()=>{if(S.user&&Date.now()-lastActive>IDLE_MS)signOut('Signed out af
 function onErr(e){console.error(e);toast(errMsg(e),true)}
 function startData(){
   stopData();const sub=S.sub;
-  sub.banks=Store.listen(C.banks,[],(rows,meta)=>{S.banks=rows.sort((a,b)=>(a.sort||0)-(b.sort||0)||String(a.name).localeCompare(b.name));S.online=!(meta&&meta.fromCache);S.loaded.banks=true;schedule()},onErr,{meta:true});
+  sub.banks=Store.listen(C.banks,[],(rows,meta)=>{S.banks=rows.sort((a,b)=>(a.sort||0)-(b.sort||0)||String(a.name).localeCompare(b.name));S.online=!(meta&&meta.fromCache);S.loaded.banks=true;if(isAdmin()&&!S.migrating&&S.online&&rows.some(b=>b.bbal==null)){S.migrating=true;recalc(true).finally(()=>{S.migrating=false})}schedule()},onErr,{meta:true});
   sub.open=Store.listen(C.txns,[['status','in',['unreleased','undeposited']]],rows=>{S.open=rows;S.loaded.open=true;schedule()},onErr,{limit:5000});
   sub.settings=Store.listenDoc(C.settings+'/main',d=>{S.settings={org:'TS Laundry',...(d||{})};schedule()},()=>{});
+  sub.customers=Store.listenDoc(C.settings+'/customers',d=>{S.lists.customers=(d&&d.names||[]).slice().sort((a,b)=>a.localeCompare(b));S.lists.custLoaded=true;if(S.route==='banks')schedule()},()=>{});
+  sub.particulars=Store.listenDoc(C.settings+'/particulars',d=>{S.lists.particulars=(d?d.names||[]:DEFAULT_PARTICULARS).slice().sort((a,b)=>a.localeCompare(b));S.lists.partDoc=!!d;if(S.route==='banks')schedule()},()=>{});
   sub.me=Store.listenDoc(C.users+'/'+S.user.id,d=>{
     if(!S.user)return;
     if(!d||d.active===false)return signOut('Your access was removed or deactivated.');
     if(hashSig(d)!==hashSig(S.user))return signOut('Your password was changed. Please sign in again.');
-    const roleChanged=d.role!==S.user.role;S.user={...d,id:S.user.id};if(roleChanged)startAdmin();schedule();
+    const roleChanged=d.role!==S.user.role;S.user={...d,id:S.user.id};if(roleChanged)startAdmin();if(!canTab(S.route))route();else schedule();
   },()=>{});
   startAdmin();
 }
@@ -363,7 +399,7 @@ function startAdmin(){
   if(S.sub.users){S.sub.users();S.sub.users=null}
   if(isAdmin())S.sub.users=Store.listen(C.users,[],rows=>{S.users=rows.sort((a,b)=>String(a.name||a.username||'').localeCompare(String(b.name||b.username||'')));schedule()},onErr);
 }
-function stopData(){for(const k of Object.keys(S.sub)){try{typeof S.sub[k]==='function'&&S.sub[k]()}catch(e){}}S.sub={};S.ledgerRows=null;S.regRows=null;S.banks=[];S.open=[];S.users=[];S.audit=[];S.loaded={banks:false,open:false}}
+function stopData(){for(const k of Object.keys(S.sub)){try{typeof S.sub[k]==='function'&&S.sub[k]()}catch(e){}}S.sub={};S.ledgerRows=null;S.regRows=null;S.stmtRows=null;S.pendRows=undefined;S.banks=[];S.open=[];S.users=[];S.audit=[];S.loaded={banks:false,open:false}}
 function ensureLedger(){const key=S.ui.lFrom;if(S.sub.ledgerKey===key)return;S.sub.ledger&&S.sub.ledger();S.sub.ledgerKey=key;S.ledgerRows=null;
   S.sub.ledger=Store.listen(C.txns,[['eff','>=',key]],rows=>{S.ledgerRows=rows;schedule()},onErr,{limit:10000})}
 function ensureRegister(){const key=S.ui.rFrom+'|'+S.ui.rTo;if(S.sub.regKey===key)return;S.sub.reg&&S.sub.reg();S.sub.regKey=key;S.regRows=null;
@@ -372,8 +408,19 @@ function ensureAudit(){if(S.sub.audit)return;S.sub.audit=Store.listen(C.audit,[]
 
 /* ================= Rendering ================= */
 let rq=0;function schedule(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;render()})}
-const NAV=[['dash','Dashboard'],['unrel','Unreleased cheques'],['undep','Undeposited'],['ledger','Bank ledger'],['register','All entries'],['banks','Bank accounts',1],['users','Users',1],['activity','Activity',1]];
-function route(){const r=(location.hash||'').slice(1);S.route=NAV.some(n=>n[0]===r&&(!n[2]||isAdmin()))?r:'dash';S.ui.sel=new Set();render()}
+const NAV=[['dash','Dashboard'],['unrel','Unreleased cheques'],['undep','Undeposited'],['ledger','Bank ledger'],['statement','Bank statement'],['register','All entries'],['banks','Bank accounts',1],['users','Users',1],['activity','Activity']];
+/* Tabs an administrator can give to other users. Bank accounts and Users stay administrator-only.
+   user.tabs = null → default set (all of these except Activity); array → exactly those tabs. */
+const USER_TABS=[['dash','Dashboard'],['unrel','Unreleased cheques'],['undep','Undeposited'],['ledger','Bank ledger'],['statement','Bank statement'],['register','All entries'],['activity','Activity']];
+const DEFAULT_TABS=['dash','unrel','undep','ledger','statement','register'];
+const tabsOf=u=>u&&u.role==='ADMIN'?NAV.map(n=>n[0]):(Array.isArray(u&&u.tabs)?u.tabs:DEFAULT_TABS);
+const canTab=k=>!!S.user&&(isAdmin()||(!(NAV.find(n=>n[0]===k)||[])[2]&&tabsOf(S.user).includes(k)));
+/* Which entry types a user may add/edit: follows the tabs they were given. */
+function kindAllowed(k){if(!canEdit())return false;if(isAdmin())return true;
+  if(k==='cheque')return canTab('unrel')||canTab('register');
+  if(k==='deposit')return canTab('undep')||canTab('register');
+  return canTab('ledger')||canTab('register')}
+function route(){const r=(location.hash||'').slice(1);const ok=NAV.filter(n=>canTab(n[0])).map(n=>n[0]);S.route=ok.includes(r)?r:(ok[0]||'none');S.ui.sel=new Set();render()}
 window.addEventListener('hashchange',()=>{if(S.phase==='app')route()});
 
 function render(){
@@ -393,19 +440,21 @@ function vHeader(){
   return `<header class="top"><div class="topbar">
     <div class="brand">${h(S.settings.org||'')} <small>Cash Tracker</small></div><span class="spacer"></span>
     <span class="live" title="${S.online?'Connected — changes from other users appear instantly':'Offline — showing the last saved data'}"><span class="dot ${S.online?'':'off'}"></span>${S.online?'Live':'Offline'}</span>
-    ${canEdit()?'<button class="btn primary" data-act="new">+ New entry</button>':''}
+    ${['cheque','deposit','debit'].some(kindAllowed)?'<button class="btn primary" data-act="new">+ New entry</button>':''}
     <div class="menu" id="umenu"><button class="btn" data-act="menu" aria-haspopup="true">${h((S.user.name||S.user.username||'').split(' ')[0])} ▾</button>
       <div class="pop"><div class="who"><b>${h(S.user.name||'')}</b><br>${h(S.user.username||S.user.id)} · ${ROLES[S.user.role]||S.user.role}</div>
       <button data-act="myPw">Change my password</button><button data-act="signOut">Sign out</button></div></div>
-  </div><nav class="tabs">${NAV.filter(n=>!n[2]||isAdmin()).map(([k,l])=>`<a href="#${k}" class="${S.route===k?'on':''}">${l}${badge[k]?`<span class="badge">${badge[k]}</span>`:''}</a>`).join('')}</nav></header>`;
+  </div><nav class="tabs">${NAV.filter(n=>canTab(n[0])).map(([k,l])=>`<a href="#${k}" class="${S.route===k?'on':''}">${l}${badge[k]?`<span class="badge">${badge[k]}</span>`:''}</a>`).join('')}</nav></header>`;
 }
 function vMain(){
   if(!S.loaded.banks)return '<div class="empty">Loading live data…</div>';
+  if(S.route==='none')return '<div class="panel empty"><h2>No tabs assigned yet</h2><p>Ask the administrator to give you access in Users.</p></div>';
   switch(S.route){
     case 'unrel':return vOpen('cheque');
     case 'undep':return vOpen('deposit');
     case 'ledger':return vLedger();
     case 'register':return vRegister();
+    case 'statement':return vStatement();
     case 'banks':return vBanks();
     case 'users':return vUsers();
     case 'activity':return vActivity();
@@ -457,56 +506,61 @@ function vDash(){
     <div class="kpi"><div class="l">Projected balance</div><div class="v ${proj<0?'neg':''}">${peso(proj)}</div><div class="s">bank − unreleased + undeposited</div></div>
   </div>
   <div class="cards">${banks.map(b=>{const p=(b.bal||0)-(b.unrel||0)+(b.undep||0);return `<div class="card">
-    <div class="row"><div><b>${h(b.name)}</b><div class="small muted">${h([b.bank,b.acct_no].filter(Boolean).join(' · '))}</div></div><span class="spacer"></span><a class="small" href="#ledger" data-act="toLedger" data-id="${b.id}">Ledger →</a></div>
+    <div class="row"><div><b>${h(b.name)}</b><div class="small muted">${h([b.bank,b.acct_no].filter(Boolean).join(' · '))}</div></div><span class="spacer"></span>${canTab('ledger')?`<a class="small" href="#ledger" data-act="toLedger" data-id="${b.id}">Ledger →</a>`:''}</div>
     <div class="small muted" style="margin-top:8px">Cash in bank</div><div class="big ${(b.bal||0)<0?'neg':''}">${peso(b.bal)}</div>
-    <div class="kv"><a href="#unrel" data-act="toOpen" data-r="unrel" data-id="${b.id}">Unreleased cheques (${b.unrel_n||0})</a><span class="num">${peso(b.unrel)}</span></div>
-    <div class="kv"><a href="#undep" data-act="toOpen" data-r="undep" data-id="${b.id}">Undeposited (${b.undep_n||0})</a><span class="num">${peso(b.undep)}</span></div>
+    <div class="kv">${canTab('unrel')?`<a href="#unrel" data-act="toOpen" data-r="unrel" data-id="${b.id}">Unreleased cheques (${b.unrel_n||0})</a>`:`<span>Unreleased cheques (${b.unrel_n||0})</span>`}<span class="num">${peso(b.unrel)}</span></div>
+    <div class="kv">${canTab('undep')?`<a href="#undep" data-act="toOpen" data-r="undep" data-id="${b.id}">Undeposited (${b.undep_n||0})</a>`:`<span>Undeposited (${b.undep_n||0})</span>`}<span class="num">${peso(b.undep)}</span></div>
     <div class="kv"><b>Projected</b><b class="num ${p<0?'neg':''}">${peso(p)}</b></div></div>`}).join('')}</div>
   <div class="two">
-    <div class="panel"><div class="row" style="margin-bottom:8px"><h2 style="margin:0">Oldest unreleased cheques</h2><span class="spacer"></span><a href="#unrel">See all</a></div>${mini(openU)}</div>
-    <div class="panel"><div class="row" style="margin-bottom:8px"><h2 style="margin:0">Oldest undeposited collections</h2><span class="spacer"></span><a href="#undep">See all</a></div>${mini(openD)}</div>
+    <div class="panel"><div class="row" style="margin-bottom:8px"><h2 style="margin:0">Oldest unreleased cheques</h2><span class="spacer"></span>${canTab('unrel')?'<a href="#unrel">See all</a>':''}</div>${mini(openU)}</div>
+    <div class="panel"><div class="row" style="margin-bottom:8px"><h2 style="margin:0">Oldest undeposited collections</h2><span class="spacer"></span>${canTab('undep')?'<a href="#undep">See all</a>':''}</div>${mini(openD)}</div>
   </div>`;
 }
 
 /* ---------- Unreleased cheques / Undeposited collections ---------- */
 function openCfg(kind){return kind==='cheque'
   ?{status:'unreleased',title:'Unreleased cheques',date:'Cheque date',party:'Payee',when:'Release date',act:'Release',done:'released'}
-  :{status:'undeposited',title:'Undeposited collections',date:'Date received',party:'Received from',when:'Deposit date',act:'Deposit',done:'deposited'}}
+  :{status:'undeposited',title:'Undeposited collections',date:'Date received',party:'Customer',when:'Deposit date',act:'Deposit',done:'deposited'}}
+const payOf=t=>t.pay==='cheque'?'cheque':'cash';
+const payLabel=t=>t.kind!=='deposit'?'':payOf(t)==='cheque'?`Cheque${t.chk_no?' #'+t.chk_no:''}${t.chk_bank?' · '+t.chk_bank:''}${t.chk_date?' · '+fd(t.chk_date):''}`:'Cash';
+const payPill=t=>payOf(t)==='cheque'?`<span class="pill p-info">Cheque</span><div class="small muted">${h([t.chk_no?'#'+t.chk_no:'',t.chk_bank,t.chk_date?fd(t.chk_date):''].filter(Boolean).join(' · '))}</div>`:'<span class="pill p-mute">Cash</span>';
 function openRows(kind){
   const cfg=openCfg(kind),q=S.ui.q.trim().toLowerCase();
   return S.open.filter(t=>t.status===cfg.status&&canSee(t.bank)&&(!S.ui.bank||t.bank===S.ui.bank)&&
-    (!q||[t.no,t.payee,t.ref,t.note,peso(t.amt),money(t.amt)].join(' ').toLowerCase().includes(q)))
+    (kind!=='deposit'||!S.ui.pay||payOf(t)===S.ui.pay)&&
+    (!q||[t.no,t.payee,t.ref,t.note,t.chk_no,t.chk_bank,peso(t.amt),money(t.amt)].join(' ').toLowerCase().includes(q)))
     .sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:String(a.no||'').localeCompare(String(b.no||''),undefined,{numeric:true}));
 }
 function vOpen(kind){
-  const cfg=openCfg(kind),rows=openRows(kind),ed=canEdit();
+  const cfg=openCfg(kind),rows=openRows(kind),ed=kindAllowed(kind);
   for(const id of [...S.ui.sel])if(!rows.some(r=>r.id===id))S.ui.sel.delete(id);
   const sel=rows.filter(r=>S.ui.sel.has(r.id)),selTot=sel.reduce((s,r)=>s+r.amt,0),tot=rows.reduce((s,r)=>s+r.amt,0);
   return `<div class="panel">
   <div class="row" style="margin-bottom:12px"><h1 style="margin:0">${cfg.title}</h1><span class="spacer"></span>
     <select id="fBank" data-ui="bank" aria-label="Bank account">${bankOptions(S.ui.bank,{blank:'All accounts'})}</select>
+    ${kind==='deposit'?`<select id="fPay" data-ui="pay" aria-label="Collected as"><option value="">Cash and cheques</option><option value="cash" ${S.ui.pay==='cash'?'selected':''}>Cash only</option><option value="cheque" ${S.ui.pay==='cheque'?'selected':''}>Cheques only</option></select>`:''}
     <input type="search" id="fQ" data-ui="q" placeholder="Search no., name, amount" value="${h(S.ui.q)}">
     <button class="btn noprint" data-act="csvOpen" data-kind="${kind}">Export CSV</button></div>
   <p class="muted small" style="margin-top:0">${kind==='cheque'
     ?'Cheques that were written but not yet handed to the payee. Enter the release date when the cheque is released — it then leaves this list and is deducted from cash in bank.'
-    :'Collections received but not yet deposited. Enter the deposit date when it is deposited — it then leaves this list and is added to cash in bank.'}</p>
+    :'Collections received but not yet deposited. Enter the deposit date when it is deposited — it then leaves this list and is added to cash in bank.'+(rows.length?` <b>Cash: ${peso(rows.filter(t=>payOf(t)==='cash').reduce((s,t)=>s+t.amt,0))} · Cheques: ${peso(rows.filter(t=>payOf(t)==='cheque').reduce((s,t)=>s+t.amt,0))}</b>`:'')}</p>
   ${ed&&rows.length?`<div class="bulk"><b style="align-self:center">${sel.length?`${sel.length} selected · ${peso(selTot)}`:'Tick rows to '+cfg.act.toLowerCase()+' several at once'}</b><span class="spacer"></span>
     <label class="f">${cfg.when}<input type="date" id="bulkDate" data-ui="bulkDate" value="${h(S.ui.bulkDate)}"></label>
     ${kind==='deposit'?`<label class="f">Deposit slip no. (optional)<input type="text" id="bulkRef" data-ui="bulkRef" value="${h(S.ui.bulkRef)}" style="width:150px"></label>`:''}
     <button class="btn primary" data-act="bulkDone" data-kind="${kind}" ${sel.length?'':'disabled'}>${cfg.act} selected</button></div>`:''}
   ${rows.length?`<div class="tablewrap"><table><thead><tr>
     ${ed?`<th><input type="checkbox" data-act="selAll" aria-label="Select all" ${sel.length&&sel.length===rows.length?'checked':''}></th>`:''}
-    <th>${cfg.date}</th>${kind==='cheque'?'<th>Cheque no.</th>':'<th>OR / ref.</th>'}<th>Account</th><th>${cfg.party}</th><th>Particulars</th><th class="n">Amount</th><th class="n">Age</th>
+    <th>${cfg.date}</th>${kind==='cheque'?'<th>Cheque no.</th><th>APV / ref.</th>':'<th>OR / ref.</th>'}<th>Account</th>${kind==='deposit'?'<th>Collected as</th>':''}<th>${cfg.party}</th><th>Particulars</th><th class="n">Amount</th><th class="n">Age</th>
     ${ed?`<th>${cfg.when}</th><th></th>`:''}</tr></thead><tbody>
     ${rows.map(t=>{const age=daysBetween(t.date,today());const stale=kind==='cheque'&&age>180;
       return `<tr class="${S.ui.sel.has(t.id)?'sel':''}">
       ${ed?`<td><input type="checkbox" data-act="sel" data-id="${t.id}" ${S.ui.sel.has(t.id)?'checked':''} aria-label="Select"></td>`:''}
-      <td class="num">${fd(t.date)}</td><td class="num"><a href="#" data-act="edit" data-id="${t.id}">${h(kind==='cheque'?t.no:(t.ref||'—'))}</a></td>
-      <td>${h(bankName(t.bank))}</td><td>${h(t.payee)}</td><td class="small">${h(t.note)}</td><td class="n b">${peso(t.amt)}</td>
+      <td class="num">${fd(t.date)}</td><td class="num"><a href="#" data-act="edit" data-id="${t.id}">${h(kind==='cheque'?t.no:(t.ref||'—'))}</a></td>${kind==='cheque'?`<td class="num">${h(t.ref||'')}</td>`:''}
+      <td>${h(bankName(t.bank))}</td>${kind==='deposit'?`<td>${payPill(t)}</td>`:''}<td>${h(t.payee)}</td><td class="small">${h(t.note)}</td><td class="n b">${peso(t.amt)}</td>
       <td class="n">${age<0?'<span class="pill p-info">post-dated</span>':stale?`<span class="pill p-bad">${age} d · stale</span>`:age>30?`<span class="pill p-warn">${age} d</span>`:age+' d'}</td>
       ${ed?`<td><input type="date" id="d_${t.id}" data-draft="${t.id}" value="${h(S.ui.drafts[t.id]||today())}" aria-label="${cfg.when}"></td>
       <td><button class="btn sm primary" data-act="oneDone" data-id="${t.id}" data-kind="${kind}">${cfg.act}</button></td>`:''}</tr>`}).join('')}
-    </tbody><tfoot><tr>${ed?'<td></td>':''}<td colspan="5">${rows.length} item(s)</td><td class="n">${peso(tot)}</td><td></td>${ed?'<td></td><td></td>':''}</tr></tfoot></table></div>`
+    </tbody><tfoot><tr>${ed?'<td></td>':''}<td colspan="6">${rows.length} item(s)</td><td class="n">${peso(tot)}</td><td></td>${ed?'<td></td><td></td>':''}</tr></tfoot></table></div>`
   :`<div class="empty">${S.loaded.open?'Nothing pending.':'Loading…'}</div>`}
   </div>`;
 }
@@ -546,7 +600,7 @@ function vLedger(){
     let run=start;
     const tr=list.map(t=>{const v=t.opening?t.amt:bankSign(t);run+=v;if(v>=0)sumIn+=v;else sumOut-=v;t._run=run;
       if(t.opening)return `<tr><td class="num">${fd(t.eff)}</td><td><span class="pill p-mute">Opening</span></td><td></td><td>Opening balance</td><td class="n pos">${v>=0?peso(v):''}</td><td class="n">${v<0?peso(-v):''}</td><td class="n b">${peso(run)}</td></tr>`;
-      return `<tr class="click" data-act="edit" data-id="${t.id}"><td class="num">${fd(t.eff)}</td><td>${typePill(t)}</td><td class="num">${h(t.kind==='cheque'?'#'+t.no:(t.ref||t.dref||''))}</td>
+      return `<tr class="click" data-act="edit" data-id="${t.id}"><td class="num">${fd(t.eff)}</td><td>${typePill(t)}</td><td class="num">${h(t.kind==='cheque'?'#'+t.no:(t.ref||t.dref||''))}${t.kind==='cheque'&&t.ref?`<div class="small muted">${h(t.ref)}</div>`:''}</td>
       <td>${h(t.payee||'')}${t.note?`<div class="small muted">${h(t.note)}</div>`:''}</td><td class="n pos">${v>0?peso(v):''}</td><td class="n neg">${v<0?peso(-v):''}</td><td class="n b ${run<0?'neg':''}">${peso(run)}</td></tr>`}).join('');
     end=run;
     body=`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Type</th><th>No. / ref.</th><th>Payee / particulars</th><th class="n">Deposits &amp; credits</th><th class="n">Cheques &amp; debits</th><th class="n">Balance</th></tr></thead>
@@ -605,9 +659,9 @@ function vRegister(){
     <input type="search" id="rQ" data-ui="rQ" placeholder="Search no., name, amount, user" value="${h(S.ui.rQ)}" style="flex:1;min-width:160px">
   </div>
   <p class="muted small" style="margin-top:0">Filtered by entry date (cheque date / date received). ${Object.entries(sums).map(([k,v])=>`${k==='transfer'?'Transfers':KIND[k]+'s'}: <b>${peso(v)}</b>`).join(' · ')}</p>
-  ${S.regRows==null?'<div class="empty">Loading…</div>':rows.length?`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Type</th><th>Account</th><th>No. / ref.</th><th>Payee / source</th><th class="n">Amount</th><th>Status</th><th class="noprint">By</th></tr></thead><tbody>
+  ${S.regRows==null?'<div class="empty">Loading…</div>':rows.length?`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Type</th><th>Account</th><th>No. / ref.</th><th>Payee / customer</th><th class="n">Amount</th><th>Status</th><th class="noprint">By</th></tr></thead><tbody>
   ${rows.map(t=>`<tr class="click" data-act="edit" data-id="${t.id}"><td class="num">${fd(t.date)}</td><td>${typePill(t)}</td><td>${h(bankName(t.bank))}${t.xbank?`<div class="small muted">${t.kind==='debit'?'to':'from'} ${h(bankName(t.xbank))}</div>`:''}</td>
-  <td class="num">${h(t.kind==='cheque'?'#'+t.no:(t.ref||''))}</td><td>${h(t.payee||'')}${t.note?`<div class="small muted">${h(t.note)}</div>`:''}</td>
+  <td class="num">${h(t.kind==='cheque'?'#'+t.no:(t.ref||''))}${t.kind==='cheque'&&t.ref?`<div class="small muted">${h(t.ref)}</div>`:''}</td><td>${h(t.payee||'')}${t.kind==='deposit'?`<div class="small muted">${h(payLabel(t))}</div>`:''}${t.note?`<div class="small muted">${h(t.note)}</div>`:''}</td>
   <td class="n b" style="${t.status==='void'?'text-decoration:line-through;opacity:.6':''}">${peso(t.amt)}</td><td>${statusPill(t)}</td><td class="small muted noprint">${h(t.updated_by||t.created_by||'')}</td></tr>`).join('')}
   </tbody></table></div><p class="muted small">${rows.length} entr${rows.length===1?'y':'ies'}${S.regRows.length>=5000?' — limit reached, narrow the dates':''}</p>`:'<div class="empty">No entries in this period.</div>'}
   </div>`;
@@ -627,7 +681,13 @@ function vBanks(){
   <div class="two">
   <div class="panel"><h2>Company name</h2><form id="fOrg" class="row"><input type="text" name="org" value="${h(S.settings.org||'')}" style="flex:1"><button class="btn" type="submit">Save</button></form></div>
   <div class="panel"><h2>Check balances</h2><p class="muted small" style="margin-top:0">Re-adds every entry from scratch and compares with the totals shown on the dashboard. Use it if a total ever looks wrong. Best done when no one else is encoding.</p>
-  <button class="btn" data-act="recalc">Check and fix balances</button></div></div>`;
+  <button class="btn" data-act="recalc">Check and fix balances</button></div></div>
+  <div class="two">${['customers','particulars'].map(k=>{const q=S.ui[k==='customers'?'lcQ':'lpQ'].trim().toLowerCase();const all=S.lists[k]||[];const list=all.filter(x=>!q||x.toLowerCase().includes(q));
+    return `<div class="panel"><h2>${k==='customers'?'Customers':'Particulars'} · ${all.length}</h2>
+    <form class="row" data-list="${k}" id="fList_${k}" style="margin-bottom:8px"><input type="text" name="v" placeholder="Add ${LIST_LABEL[k]}" style="flex:1"><button class="btn" type="submit">Add</button></form>
+    <input type="search" id="${k==='customers'?'lcQ':'lpQ'}" data-ui="${k==='customers'?'lcQ':'lpQ'}" placeholder="Search" value="${h(S.ui[k==='customers'?'lcQ':'lpQ'])}" style="width:100%;margin-bottom:8px">
+    ${list.length?`<div class="chiplist">${list.slice(0,200).map(x=>`<div><span style="flex:1">${h(x)}</span><button class="btn sm ghost" data-act="listDel" data-list="${k}" data-v="${h(x)}" aria-label="Remove ${h(x)}">✕</button></div>`).join('')}</div>${list.length>200?`<p class="muted small">Showing 200 of ${list.length}. Search to narrow.</p>`:''}`:'<div class="empty small">None yet.</div>'}
+    <p class="muted small" style="margin-bottom:0">Used in Collection / deposit entries. New names typed there are added automatically. Removing a name does not change past entries.</p></div>`}).join('')}</div>`;
 }
 function dlgBank(b){
   const n=!b;b=b||{active:true,sort:S.banks.length+1,open_date:today()};
@@ -654,12 +714,12 @@ async function saveBank(f){
   try{
     if(d.isNew){
       const id=Store.newId(C.banks);
-      await Store.set(C.banks+'/'+id,{...base,open_amt,bal:open_amt,unrel:0,unrel_n:0,undep:0,undep_n:0,created_at:nowISO(),created_by:S.user.name});
+      await Store.set(C.banks+'/'+id,{...base,open_amt,bal:open_amt,bbal:open_amt,unrel:0,unrel_n:0,undep:0,undep_n:0,created_at:nowISO(),created_by:S.user.name});
       logAudit('BANK_ADD',`Added bank account ${name} (opening ${peso(open_amt)} as of ${fd(f.open_date)})`,id);
     }else{
       const id=d.bank.id;let old;
       await Store.tx(async t=>{old=await t.get(C.banks+'/'+id);if(!old)throw new Error('Bank account not found.');
-        const delta=open_amt-(old.open_amt||0);t.update(C.banks+'/'+id,{...base,open_amt,...(delta?{bal:Store.inc(delta)}:{})})});
+        const delta=open_amt-(old.open_amt||0);t.update(C.banks+'/'+id,{...base,open_amt,...(delta?{bal:Store.inc(delta),bbal:Store.inc(delta)}:{})})});
       const ch=[];if(old.open_amt!==open_amt)ch.push(`opening ${peso(old.open_amt)} → ${peso(open_amt)}`);if(old.open_date!==f.open_date)ch.push(`as of ${fd(old.open_date)} → ${fd(f.open_date)}`);if(old.name!==name)ch.push(`name ${old.name} → ${name}`);if((old.active!==false)!==!!f.active)ch.push(f.active?'activated':'deactivated');
       logAudit('BANK_EDIT',`Edited bank account ${name}${ch.length?': '+ch.join(', '):''}`,id);
     }
@@ -675,14 +735,17 @@ async function deleteBank(){
     await Store.del(C.banks+'/'+b.id);logAudit('BANK_DELETE',`Deleted bank account ${b.name}`,b.id);closeDlg();toast('Bank account deleted.');
   }catch(e){toast(errMsg(e),true)}
 }
-async function recalc(){
+async function recalc(silentFix){
   try{
-    toast('Checking all entries…');
+    if(!silentFix)toast('Checking all entries…');
     const all=await Store.query(C.txns,[]);
-    const tot={};for(const b of S.banks)tot[b.id]={bal:b.open_amt||0,unrel:0,unrel_n:0,undep:0,undep_n:0};
-    for(const t of all){const e=effect(t);if(e&&tot[e.bank])for(const k of['bal','unrel','unrel_n','undep','undep_n'])tot[e.bank][k]+=e[k]||0}
-    const diffs=S.banks.filter(b=>['bal','unrel','unrel_n','undep','undep_n'].some(k=>(b[k]||0)!==tot[b.id][k]));
+    const fixBd=all.filter(t=>(t.bd??null)!==bdOf(t));
+    for(const t of fixBd){t.bd=bdOf(t);await Store.update(C.txns+'/'+t.id,{bd:t.bd})}
+    const tot={};for(const b of S.banks)tot[b.id]={bal:b.open_amt||0,unrel:0,unrel_n:0,undep:0,undep_n:0,bbal:b.open_amt||0};
+    for(const t of all){const e=effect(t);if(e&&tot[e.bank])for(const k of KEYS)tot[e.bank][k]+=e[k]||0}
+    const diffs=S.banks.filter(b=>KEYS.some(k=>(b[k]??null)!==tot[b.id][k]));
     if(!diffs.length)return toast(`All ${S.banks.length} account balances are correct (${all.length} entries checked).`);
+    if(silentFix){for(const b of diffs)await Store.update(C.banks+'/'+b.id,tot[b.id]);return}
     if(!confirm(`${diffs.length} account(s) have totals that do not match their entries:\n\n${diffs.map(b=>`${b.name}: shown ${peso(b.bal)}, entries give ${peso(tot[b.id].bal)}`).join('\n')}\n\nFix them now?`))return;
     for(const b of diffs)await Store.update(C.banks+'/'+b.id,tot[b.id]);
     logAudit('RECALC',`Fixed balances of ${diffs.map(b=>b.name).join(', ')}`);
@@ -697,9 +760,10 @@ function vUsers(){
   return `<div class="panel">
   <div class="row" style="margin-bottom:12px"><h1 style="margin:0">Users</h1><span class="spacer"></span><button class="btn primary" data-act="userNew">+ Add user</button></div>
   <p class="muted small" style="margin-top:0"><b>Administrator</b>: everything, incl. bank accounts and users. <b>Encoder</b>: add, edit, release, deposit and void entries. <b>Viewer</b>: view and export only.</p>
-  <div class="tablewrap"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Bank accounts</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Bank accounts</th><th>Tabs</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>
   ${ok.map(u=>`<tr><td class="b">${h(u.name)}${u.id===S.user.id?' <span class="pill p-info">you</span>':''}</td><td>${h(u.username||u.id)}</td><td>${ROLES[u.role]||h(u.role)}</td>
   <td class="small">${u.role==='ADMIN'||!Array.isArray(u.banks)?'All':u.banks.map(bankName).map(h).join(', ')||'None'}</td>
+  <td class="small">${u.role==='ADMIN'?'All':(tabsOf(u).length?USER_TABS.filter(t=>tabsOf(u).includes(t[0])).map(t=>t[1]).join(', '):'<span class="neg">None</span>')}</td>
   <td>${u.active===false?'<span class="pill p-mute">Deactivated</span>':u.must_change?'<span class="pill p-warn">Temporary password</span>':'<span class="pill p-ok">Active</span>'}</td>
   <td class="small">${fdt(u.last_login)||'—'}</td>
   <td class="row" style="flex-wrap:nowrap"><button class="btn sm" data-act="userEdit" data-id="${u.id}">Edit</button><button class="btn sm" data-act="userReset" data-id="${u.id}">Reset password</button></td></tr>`).join('')}
@@ -720,6 +784,10 @@ function dlgUser(u){
   <label class="f">Role<select name="role">${Object.entries(ROLES).map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select></label>
   ${n?`<label class="f">Temporary password<input type="text" name="pw" required minlength="8" value="${pw}" autocomplete="off"></label>`:`<label class="chk" style="align-self:end"><input type="checkbox" name="active" ${u.active!==false?'checked':''} ${u.id===S.user.id?'disabled':''}> Active (can sign in)</label>`}</div>
   <div><div class="small muted b" style="margin-bottom:6px">Bank accounts this user can see (administrators see all)</div>${bankChecks(u.banks)}</div>
+  <div id="tabBox" style="${u.role==='ADMIN'?'display:none':''}"><div class="small muted b" style="margin-bottom:6px">Tabs this user can open</div>
+    <div class="grid2" style="gap:6px">${USER_TABS.map(([k,l])=>`<label class="chk"><input type="checkbox" name="tab_${k}" ${tabsOf({...u,role:''}).includes(k)?'checked':''}> ${l}</label>`).join('')}</div>
+    <p class="muted small" style="margin:6px 0 0">Bank accounts and Users are for administrators only. Encoders can add only the entry types of their tabs: Unreleased cheques → cheques, Undeposited → collections, Bank ledger → debits, credits and transfers (All entries → every type).</p></div>
+  <div id="tabAdminNote" class="muted small" style="${u.role==='ADMIN'?'':'display:none'}">Administrators can open every tab.</div>
   ${n?'<p class="muted small" style="margin:0">Give the temporary password to the user. They will be asked to choose their own password at first sign-in.</p>':''}
   <div class="acts">${!n&&u.id!==S.user.id?'<button type="button" class="btn danger" data-act="userDel" style="margin-right:auto">Delete user</button>':''}<button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>`,{user:u,isNew:n});
 }
@@ -727,6 +795,8 @@ function readBanks(f){if(f.allBanks)return null;return S.banks.filter(b=>f['bk_'
 function activeAdmins(exceptId){return S.users.filter(u=>u.role==='ADMIN'&&u.active!==false&&u.hash&&u.id!==exceptId).length}
 async function saveUser(f){
   const d=S.dlg,name=f.name.trim(),role=f.role,banks=readBanks(f);
+  const tabs=role==='ADMIN'?null:USER_TABS.filter(t=>f['tab_'+t[0]]).map(t=>t[0]);
+  if(tabs&&!tabs.length&&!confirm('This user will not be able to open any tab. Continue?'))return;
   if(!name)return toast('Enter the name.',true);
   try{
     if(d.isNew){
@@ -735,14 +805,14 @@ async function saveUser(f){
       if((f.pw||'').length<8)return toast('The temporary password needs at least 8 characters.',true);
       if(await Store.get(C.users+'/'+id))return toast('That username is already taken.',true);
       const hs=await makeHash(f.pw);
-      await Store.set(C.users+'/'+id,{username,name,role,banks,active:true,must_change:true,...hs,created_at:nowISO(),created_by:S.user.name,pw_set_at:nowISO(),pw_set_by:S.user.name});
+      await Store.set(C.users+'/'+id,{username,name,role,banks,tabs,active:true,must_change:true,...hs,created_at:nowISO(),created_by:S.user.name,pw_set_at:nowISO(),pw_set_by:S.user.name});
       logAudit('USER_ADD',`Added user ${name} (${username}) as ${ROLES[role]}`,id);
       closeDlg();showPassword(name,username,f.pw);
     }else{
       const u=d.user,active=u.id===S.user.id?true:!!f.active;
       if(u.role==='ADMIN'&&(role!=='ADMIN'||!active)&&!activeAdmins(u.id))return toast('Keep at least one active administrator.',true);
       if(u.id===S.user.id&&role!=='ADMIN')return toast('You cannot remove your own administrator role.',true);
-      await Store.update(C.users+'/'+u.id,{name,role,banks,active,...stamp()});
+      await Store.update(C.users+'/'+u.id,{name,role,banks,tabs,active,...stamp()});
       logAudit('USER_EDIT',`Edited user ${name}: ${ROLES[role]}, ${active?'active':'deactivated'}`,u.id);
       closeDlg();toast('User saved.');
     }
@@ -812,9 +882,127 @@ function vActivity(){
   ${rows.map(a=>`<tr><td class="small num" style="white-space:nowrap">${fdt(a.at)}</td><td>${h(a.by_name)}</td><td><span class="pill p-mute">${h(a.action)}</span></td><td>${h(a.summary)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No activity yet.</div>'}</div>`;
 }
 
+/* ================= Searchable lists (customers, particulars) =================
+   Saved in cash_settings/customers and cash_settings/particulars as {names:[…]}, shared by all users. */
+function combo(name,list,value,{placeholder='',dis='',add='item'}={}){
+  return `<div class="combo"><input type="text" name="${name}" value="${h(value)}" placeholder="${h(placeholder)}" autocomplete="off" data-combo="${list}" data-add="${add}" role="combobox" aria-autocomplete="list" aria-expanded="false" ${dis}><div class="combo-list" role="listbox"></div></div>`;
+}
+const LIST_LABEL={customers:'customer',particulars:'particular'};
+async function listAdd(key,v,quiet){
+  v=String(v||'').trim().replace(/\s+/g,' ');if(!v)return;
+  const cur=S.lists[key]||[];if(cur.some(x=>x.toLowerCase()===v.toLowerCase()))return;
+  S.lists[key]=[...cur,v].sort((a,b)=>a.localeCompare(b));
+  const extra=key==='particulars'&&!S.lists.partDoc?DEFAULT_PARTICULARS:[];
+  try{await Store.addToList(C.settings+'/'+key,...extra,v);if(!quiet)toast(`New ${LIST_LABEL[key]} added: ${v}`)}catch(e){toast(errMsg(e),true)}
+}
+async function listRemove(key,v){
+  if(!confirm(`Remove "${v}" from the ${LIST_LABEL[key]} list? Entries that already use it are not changed.`))return;
+  try{if(key==='particulars'&&!S.lists.partDoc)await Store.addToList(C.settings+'/'+key,...DEFAULT_PARTICULARS);await Store.removeFromList(C.settings+'/'+key,v);logAudit('LIST',`Removed ${LIST_LABEL[key]} "${v}"`)}catch(e){toast(errMsg(e),true)}
+}
+function comboShow(inp){
+  const list=S.lists[inp.dataset.combo]||[],raw=inp.value.trim(),q=raw.toLowerCase(),box=inp.nextElementSibling;
+  let m=q?list.filter(x=>x.toLowerCase().includes(q)).sort((a,b)=>(b.toLowerCase().startsWith(q)-a.toLowerCase().startsWith(q))||a.localeCompare(b)):list;
+  m=m.slice(0,60);
+  const mark=x=>{if(!q)return h(x);const i=x.toLowerCase().indexOf(q);return h(x.slice(0,i))+'<mark>'+h(x.slice(i,i+q.length))+'</mark>'+h(x.slice(i+q.length))};
+  let html=m.map(x=>`<div class="combo-opt" role="option" data-v="${h(x)}">${mark(x)}</div>`).join('');
+  if(q&&!list.some(x=>x.toLowerCase()===q))html+=`<div class="combo-opt combo-add" role="option" data-v="${h(raw)}" data-new="1">+ Add “${h(raw)}” as new ${h(inp.dataset.add)}</div>`;
+  if(!html)html=`<div class="combo-empty muted small">No ${h(inp.dataset.add)}s yet. Type a name to add one.</div>`;
+  box.innerHTML=html;box.classList.add('open');inp.setAttribute('aria-expanded','true');inp._act=-1;
+}
+function comboHide(inp){const box=inp&&inp.nextElementSibling;if(box&&box.classList.contains('combo-list')){box.classList.remove('open');inp.setAttribute('aria-expanded','false')}}
+function comboPick(inp,opt){inp.value=opt.dataset.v;comboHide(inp);if(opt.dataset.new)listAdd(inp.dataset.combo,opt.dataset.v)}
+document.addEventListener('focusin',e=>{if(e.target.dataset&&e.target.dataset.combo&&!e.target.disabled)comboShow(e.target)});
+document.addEventListener('focusout',e=>{if(e.target.dataset&&e.target.dataset.combo){const t=e.target;setTimeout(()=>comboHide(t),120)}});
+document.addEventListener('mousedown',e=>{const o=e.target.closest('.combo-opt');if(!o)return;e.preventDefault();comboPick(o.closest('.combo').querySelector('input'),o)});
+document.addEventListener('keydown',e=>{
+  const inp=e.target;if(!inp.dataset||!inp.dataset.combo)return;
+  const box=inp.nextElementSibling,opts=[...box.querySelectorAll('.combo-opt')];
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){if(!box.classList.contains('open'))comboShow(inp);e.preventDefault();
+    inp._act=Math.max(0,Math.min(opts.length-1,(inp._act??-1)+(e.key==='ArrowDown'?1:-1)));opts.forEach((o,i)=>o.classList.toggle('act',i===inp._act));opts[inp._act]&&opts[inp._act].scrollIntoView({block:'nearest'})}
+  else if(e.key==='Enter'&&box.classList.contains('open')&&inp._act>=0&&opts[inp._act]){e.preventDefault();comboPick(inp,opts[inp._act])}
+  else if(e.key==='Escape'&&box.classList.contains('open')){e.stopImmediatePropagation();comboHide(inp)}
+  else if(e.key==='Tab')comboHide(inp);
+},true);
+
+/* ================= Bank statement ================= */
+function ensureStatement(){
+  const key=S.ui.sFrom;
+  if(S.sub.stmtKey!==key){S.sub.stmt&&S.sub.stmt();S.sub.stmtKey=key;S.stmtRows=null;
+    S.sub.stmt=Store.listen(C.txns,[['bd','>=',key]],rows=>{S.stmtRows=rows;schedule()},onErr,{limit:10000})}
+  if(!S.sub.pend)S.sub.pend=Store.listen(C.txns,[['bpend','==',true]],rows=>{S.pendRows=rows;schedule()},onErr,{limit:2000});
+}
+function stmtData(){
+  const b=bankById(S.ui.sBank),from=S.ui.sFrom,to=S.ui.sTo;
+  const all=(S.stmtRows||[]).filter(t=>t.bank===b.id&&t.bd&&t.bd>=from&&t.status!=='void');
+  const openIn=b.open_date&&b.open_date>=from;
+  let run=(b.bbal??b.bal??0)-all.reduce((x,t)=>x+bankSign(t),0)-(openIn?(b.open_amt||0):0);
+  const start=run;
+  const list=all.filter(t=>t.bd<=to).sort((x,y)=>x.bd<y.bd?-1:x.bd>y.bd?1:(x.eff||'')<(y.eff||'')?-1:(x.eff||'')>(y.eff||'')?1:String(x.created_at||'').localeCompare(String(y.created_at||'')));
+  if(openIn&&b.open_date<=to)list.unshift({opening:true,bd:b.open_date,amt:b.open_amt||0});
+  let sumIn=0,sumOut=0;
+  for(const t of list){const v=t.opening?t.amt:bankSign(t);run+=v;if(v>=0)sumIn+=v;else sumOut-=v;t._v=v;t._run=run}
+  const pend=(S.pendRows||[]).filter(t=>t.bank===b.id&&t.status!=='void'&&t.eff).sort((x,y)=>x.eff<y.eff?-1:1);
+  return{b,from,to,start,end:run,list,sumIn,sumOut,pend};
+}
+function vStatement(){
+  const banks=visBanks(true);
+  if(!banks.length)return '<div class="panel empty">No bank accounts yet.</div>';
+  if(!S.ui.sBank||!banks.some(b=>b.id===S.ui.sBank))S.ui.sBank=banks[0].id;
+  ensureStatement();
+  const ed=canEdit(),b=bankById(S.ui.sBank);
+  let body='<div class="empty">Loading…</div>',pendHtml='',kp='';
+  if(S.stmtRows&&S.pendRows!==undefined){
+    const D=stmtData(),q=S.ui.sQ.trim().toLowerCase();
+    const match=t=>!q||t.opening||[t.no,t.ref,t.payee,t.note,t.dref,money(t.amt)].join(' ').toLowerCase().includes(q);
+    const pendSigned=D.pend.reduce((x,t)=>x+bankSign(t),0);
+    kp=`<div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi"><div class="l">Balance per bank (today)</div><div class="v">${peso(b.bbal??b.bal)}</div><div class="s">everything that has reached the bank</div></div>
+      <div class="kpi"><div class="l">Not yet in bank</div><div class="v ${pendSigned<0?'neg':''}">${peso(pendSigned)}</div><div class="s">${D.pend.length} item(s) marked "not yet in bank"</div></div>
+      <div class="kpi"><div class="l">Cash in bank (book)</div><div class="v">${peso(b.bal)}</div><div class="s">by release / deposit date</div></div></div>`;
+    body=`<div class="tablewrap"><table><thead><tr><th>Bank date</th><th>Book date</th><th>Type</th><th>No. / ref.</th><th>Payee / customer</th><th class="n">Deposits &amp; credits</th><th class="n">Withdrawals</th><th class="n">Balance</th>${ed?'<th class="noprint"></th>':''}</tr></thead><tbody>
+      <tr><td class="num">${fd(D.from)}</td><td></td><td></td><td></td><td class="b">Beginning balance</td><td></td><td></td><td class="n b">${peso(D.start)}</td>${ed?'<td class="noprint"></td>':''}</tr>
+      ${D.list.filter(match).map(t=>t.opening?`<tr><td class="num">${fd(t.bd)}</td><td></td><td><span class="pill p-mute">Opening</span></td><td></td><td>Opening balance</td><td class="n pos">${peso(t._v)}</td><td></td><td class="n b">${peso(t._run)}</td>${ed?'<td class="noprint"></td>':''}</tr>`
+      :`<tr><td>${ed?`<input type="date" class="bd" data-bdate="${t.id}" value="${t.bd}" aria-label="Bank date">`:`<span class="num">${fd(t.bd)}</span>`}</td>
+        <td class="num small">${fd(t.eff)}${t.bd!==t.eff?' <span class="pill p-warn">moved</span>':''}</td><td>${typePill(t)}</td>
+        <td class="num"><a href="#" data-act="edit" data-id="${t.id}">${h(t.kind==='cheque'?'#'+t.no:(t.ref||t.dref||'—'))}</a>${t.kind==='cheque'&&t.ref?`<div class="small muted">${h(t.ref)}</div>`:''}</td>
+        <td>${h(t.payee||'')}${t.note?`<div class="small muted">${h(t.note)}</div>`:''}</td>
+        <td class="n pos">${t._v>0?peso(t._v):''}</td><td class="n neg">${t._v<0?peso(-t._v):''}</td><td class="n b ${t._run<0?'neg':''}">${peso(t._run)}</td>
+        ${ed?`<td class="noprint"><button class="btn sm" data-act="bpend" data-id="${t.id}" title="Move to Not yet in bank">Not in bank</button></td>`:''}</tr>`).join('')}
+      </tbody><tfoot><tr><td colspan="5">Ending balance per bank ${fd(D.to)}</td><td class="n">${peso(D.sumIn)}</td><td class="n">${peso(D.sumOut)}</td><td class="n">${peso(D.end)}</td>${ed?'<td class="noprint"></td>':''}</tr></tfoot></table></div>`;
+    pendHtml=`<div class="panel"><h2>Not yet in bank · ${D.pend.length}</h2>
+      <p class="muted small" style="margin-top:0">Released cheques not yet encashed, or deposits not yet credited. Enter the bank date when it shows in the bank.</p>
+      ${D.pend.length?`<div class="tablewrap"><table><thead><tr><th>Book date</th><th>Type</th><th>No. / ref.</th><th>Payee / customer</th><th class="n">Amount</th>${ed?'<th>Bank date</th><th></th>':''}</tr></thead><tbody>
+      ${D.pend.map(t=>`<tr><td class="num">${fd(t.eff)}</td><td>${typePill(t)}</td><td class="num"><a href="#" data-act="edit" data-id="${t.id}">${h(t.kind==='cheque'?'#'+t.no:(t.ref||'—'))}</a></td><td>${h(t.payee||'')}</td>
+        <td class="n ${bankSign(t)<0?'neg':'pos'}">${peso(bankSign(t))}</td>
+        ${ed?`<td><input type="date" id="pb_${t.id}" value="${today()}" aria-label="Bank date"></td><td><button class="btn sm primary" data-act="binbank" data-id="${t.id}">In bank</button></td>`:''}</tr>`).join('')}
+      </tbody></table></div>`:'<div class="empty small">Nothing pending.</div>'}</div>`;
+  }
+  return `<div class="panel">
+  <div class="row" style="margin-bottom:12px"><h1 style="margin:0">Bank statement</h1><span class="spacer"></span>
+    <select id="sBank" data-ui="sBank" aria-label="Bank account">${bankOptions(S.ui.sBank,{includeInactive:true})}</select>
+    <label class="chk">From <input type="date" id="sFrom" data-ui="sFrom" value="${S.ui.sFrom}"></label>
+    <label class="chk">To <input type="date" id="sTo" data-ui="sTo" value="${S.ui.sTo}"></label>
+    <input type="search" id="sQ" data-ui="sQ" placeholder="Search" value="${h(S.ui.sQ)}" style="width:150px">
+    <button class="btn noprint" data-act="csvStmt">Export CSV</button><button class="btn noprint" data-act="print">Print</button></div>
+  <p class="muted small" style="margin-top:0">${h(b.name)} — every released cheque, deposited collection, debit, credit and transfer, arranged by the date it reflected in the bank. The bank date starts as the release / deposit date; change it here to match your actual bank statement.</p>
+  ${b.bbal==null?'<div class="note">Bank balances are being prepared. An administrator must open the tracker once after this update.</div>':''}
+  ${kp}${body}</div>${pendHtml}`;
+}
+async function setBankDate(id,{bdate,bpend}){
+  let t=null;try{t=await Store.get(C.txns+'/'+id)}catch(e){}
+  if(!t)return toast('Entry not found.',true);
+  if(!canEdit())return;
+  const b=bankById(t.bank);
+  if(bdate&&b&&b.open_date&&bdate<b.open_date)return toast(`Bank date is before the opening date of ${b.name} (${fd(b.open_date)}).`,true);
+  const next={...noId(t),bpend:!!bpend,...stamp()};if(bdate!==undefined)next.bdate=bdate||null;
+  const what=t.kind==='cheque'?'cheque #'+t.no:(t.xfer?'transfer':KIND[t.kind].toLowerCase())+' '+(t.payee||'');
+  try{await commit([{id,rev:t.rev||0,next}],{action:'BANK_DATE',summary:bpend?`Marked ${what} ${peso(t.amt)} as not yet in bank`:`Bank date of ${what} ${peso(t.amt)} set to ${fd(next.bdate||t.eff)}`});toast(bpend?'Moved to Not yet in bank.':'Bank date saved.')}
+  catch(e){toast(errMsg(e),true)}
+}
+
 /* ================= Entry dialog (new / edit) ================= */
 async function dlgEntry(id,kind){
-  if(!canEdit()&&!id)return;
+  if(!id&&!kind)return;
   let t=null,legs=null;
   if(id){
     t=[...S.open,...(S.regRows||[]),...(S.ledgerRows||[])].find(x=>x.id===id);
@@ -830,33 +1018,42 @@ async function dlgEntry(id,kind){
   drawEntry();
 }
 function drawEntry(){
-  const d=S.dlg,t=d.t||{},kind=d.kind,isNew=!d.id,ro=!canEdit()||t.status==='void';
+  const d=S.dlg,t=d.t||{},kind=d.kind,isNew=!d.id,ro=!kindAllowed(kind)||t.status==='void';
   const out=d.legs&&d.legs.find(x=>x.kind==='debit'),inn=d.legs&&d.legs.find(x=>x.kind==='credit');
-  const types=[['cheque','Cheque issued'],['deposit','Collection / deposit'],['debit','Bank debit'],['credit','Bank credit'],['transfer','Transfer between accounts']];
+  const types=[['cheque','Cheque issued'],['deposit','Collection / deposit'],['debit','Bank debit'],['credit','Bank credit'],['transfer','Transfer between accounts']].filter(x=>kindAllowed(x[0]));
   const dis=ro?'disabled':'';
   const only=visBanks().length===1?visBanks()[0].id:'';
-  const bankSel=(name,sel)=>`<select name="${name}" ${dis} required>${bankOptions(sel||only,{blank:'Choose…',includeInactive:!!sel})}</select>`;
+  const bankSel=(name,sel,noAuto)=>`<select name="${name}" ${dis} required>${bankOptions(sel||(noAuto?'':only),{blank:'Choose…',includeInactive:!!sel})}</select>`;
   let f='';
   if(kind==='cheque')f=`
     <label class="f">Bank account${bankSel('bank',t.bank||S.ui.bank||'')}</label>
     <label class="f">Cheque no.<input type="text" name="no" required value="${h(t.no)}" ${dis}></label>
+    <label class="f">Reference no. (APV #)<input type="text" name="ref" value="${h(t.ref)}" placeholder="e.g. APV00001" ${dis}></label>
     <label class="f">Cheque date<input type="date" name="date" required value="${h(t.date||today())}" ${dis}></label>
     <label class="f">Amount (₱)<input type="text" inputmode="decimal" name="amt" required value="${t.amt?plain(t.amt):''}" placeholder="0.00" ${dis}></label>
+    <label class="f">Release date <span class="muted">(blank = not yet released)</span><input type="date" name="eff" value="${h(t.eff||'')}" ${dis}></label>
     <label class="f span2">Payee<input type="text" name="payee" required value="${h(t.payee)}" ${dis}></label>
-    <label class="f span2">Particulars / purpose<input type="text" name="note" value="${h(t.note)}" ${dis}></label>
-    <label class="f">Release date <span class="muted">(blank = not yet released)</span><input type="date" name="eff" value="${h(t.eff||'')}" ${dis}></label>`;
+    <label class="f span2">Particulars / purpose<input type="text" name="note" value="${h(t.note)}" ${dis}></label>`;
   else if(kind==='deposit')f=`
     <label class="f">Bank account (to deposit in)${bankSel('bank',t.bank||S.ui.bank||'')}</label>
     <label class="f">Date received<input type="date" name="date" required value="${h(t.date||today())}" ${dis}></label>
     <label class="f">Amount (₱)<input type="text" inputmode="decimal" name="amt" required value="${t.amt?plain(t.amt):''}" placeholder="0.00" ${dis}></label>
     <label class="f">OR / reference no.<input type="text" name="ref" value="${h(t.ref)}" ${dis}></label>
-    <label class="f span2">Received from / source<input type="text" name="payee" value="${h(t.payee)}" placeholder="e.g. Igay RD branch sales" ${dis}></label>
-    <label class="f span2">Particulars<input type="text" name="note" value="${h(t.note)}" ${dis}></label>
+    <div class="span2"><div class="small muted b" style="margin-bottom:6px">Collected as</div><div class="seg" style="margin:0">
+      <label><input type="radio" name="pay" value="cash" data-act="payPick" ${t.pay!=='cheque'?'checked':''} ${dis}><span>Cash</span></label>
+      <label><input type="radio" name="pay" value="cheque" data-act="payPick" ${t.pay==='cheque'?'checked':''} ${dis}><span>Cheque</span></label></div></div>
+    <div id="chkFields" class="span2 grid3" style="${t.pay==='cheque'?'':'display:none'}">
+      <label class="f">Customer's bank<input type="text" name="chk_bank" value="${h(t.chk_bank)}" placeholder="e.g. BPI" ${dis}></label>
+      <label class="f">Cheque no.<input type="text" name="chk_no" value="${h(t.chk_no)}" ${dis}></label>
+      <label class="f">Cheque date<input type="date" name="chk_date" value="${h(t.chk_date||'')}" ${dis}></label></div>
+    <label class="f span2">Customer name${combo('payee','customers',t.payee,{placeholder:'Type to search, or type a new name to add',dis,add:'customer'})}</label>
+    <label class="f span2">Particulars (what the payment is for)${combo('note','particulars',t.note,{placeholder:'e.g. Monthly Amortization — type to search or add',dis,add:'particular'})}</label>
     <label class="f">Deposit date <span class="muted">(blank = not yet deposited)</span><input type="date" name="eff" value="${h(t.eff||'')}" ${dis}></label>
     <label class="f">Deposit slip no.<input type="text" name="dref" value="${h(t.dref)}" ${dis}></label>`;
   else if(kind==='transfer')f=`
     <label class="f">From account${bankSel('bank',out?out.bank:'')}</label>
-    <label class="f">To account${bankSel('xbank',inn?inn.bank:'')}</label>
+    <label class="f">To account${bankSel('xbank',inn?inn.bank:'',true)}</label>
+    ${visBanks().length<2?'<div class="note span2" style="margin:0">Transfers need at least 2 bank accounts. Add another account first.</div>':''}
     <label class="f">Date<input type="date" name="date" required value="${h((out||t).date||today())}" ${dis}></label>
     <label class="f">Amount (₱)<input type="text" inputmode="decimal" name="amt" required value="${t.amt?plain(t.amt):''}" placeholder="0.00" ${dis}></label>
     <label class="f">Reference no.<input type="text" name="ref" value="${h(t.ref)}" ${dis}></label>
@@ -868,6 +1065,9 @@ function drawEntry(){
     <label class="f">Reference no.<input type="text" name="ref" value="${h(t.ref)}" ${dis}></label>
     <label class="f span2">${kind==='debit'?'Paid to / description':'Received from / description'}<input type="text" name="payee" value="${h(t.payee)}" placeholder="${kind==='debit'?'e.g. Bank service charge, online payment to supplier':'e.g. Interest income, customer online transfer'}" ${dis}></label>
     <label class="f span2">Particulars<input type="text" name="note" value="${h(t.note)}" ${dis}></label>`;
+  if(kind!=='transfer')f+=`
+    <label class="f">Bank date <span class="muted">(blank = same as ${kind==='cheque'?'release':kind==='deposit'?'deposit':'entry'} date)</span><input type="date" name="bdate" value="${h(t.bdate||'')}" ${dis}></label>
+    <label class="chk" style="align-self:end;padding-bottom:8px"><input type="checkbox" name="bpend" ${t.bpend?'checked':''} ${dis}> Not yet in bank</label>`;
   const hint={cheque:'Deducted from cash in bank on the release date. Until then it shows under Unreleased cheques.',deposit:'Added to cash in bank on the deposit date. Until then it shows under Undeposited.',
     debit:'Deducted from cash in bank on the date — bank charges, online/auto payments, withdrawals.',credit:'Added to cash in bank on the date — interest, incoming online transfers.',transfer:'Moves money between two of your accounts on the date (one debit, one credit).'}[kind];
   openDlg(`<h2>${isNew?'New entry':(ro?'Entry':'Edit entry')} ${!isNew?typePill(t):''}</h2>
@@ -877,7 +1077,7 @@ function drawEntry(){
   <p class="muted small" style="margin:0">${hint}</p>
   ${!isNew?`<p class="muted small" style="margin:0">Created by ${h(t.created_by||'')} ${fdt(t.created_at)}${t.updated_at&&t.updated_at!==t.created_at?` · last changed by ${h(t.updated_by||'')} ${fdt(t.updated_at)}`:''}</p>`:''}
   <div class="acts">
-    ${!isNew&&canEdit()?(t.status==='void'?'<button type="button" class="btn" data-act="unvoid" style="margin-right:auto">Restore (un-void)</button>':'<button type="button" class="btn danger" data-act="void" style="margin-right:auto">Void</button>'):''}
+    ${!isNew&&kindAllowed(kind)?(t.status==='void'?'<button type="button" class="btn" data-act="unvoid" style="margin-right:auto">Restore (un-void)</button>':'<button type="button" class="btn danger" data-act="void" style="margin-right:auto">Void</button>'):''}
     ${!isNew&&isAdmin()?'<button type="button" class="btn danger" data-act="delEntry">Delete</button>':''}
     <button type="button" class="btn" data-act="close">${ro?'Close':'Cancel'}</button>
     ${ro?'':`<button class="btn primary" type="submit">${isNew?'Save entry':'Save changes'}</button>${isNew?'<button class="btn" type="submit" name="again" value="1">Save &amp; add another</button>':''}`}
@@ -897,6 +1097,10 @@ async function saveEntry(f,again){
     const first=kind==='cheque'||kind==='deposit'?eff:f.date;
     if(first&&b.open_date&&first<b.open_date)return toast(`${fd(first)} is before the opening date of ${b.name} (${fd(b.open_date)}). Change the date or the account's opening date.`,true)}
   const base={date:f.date,amt,ref:(f.ref||'').trim(),note:(f.note||'').trim(),payee:(f.payee||'').trim(),...stamp()};
+  if(kind!=='transfer'){
+    base.bdate=isISO(f.bdate)?f.bdate:null;base.bpend=!!f.bpend;
+    const b0=bankById(f.bank);if(base.bdate&&b0&&b0.open_date&&base.bdate<b0.open_date)return toast(`Bank date ${fd(base.bdate)} is before the opening date of ${b0.name} (${fd(b0.open_date)}).`,true);
+  }
   const created=isNew?{created_at:nowISO(),created_by:S.user.name}:{created_at:d.t.created_at||'',created_by:d.t.created_by||''};
   try{
     if(kind==='transfer'){
@@ -921,7 +1125,12 @@ async function saveEntry(f,again){
         if(dup.length&&!confirm(`Cheque #${no} already exists for ${bankName(f.bank)} (${dup.map(x=>`${fd(x.date)} ${x.payee} ${peso(x.amt)}${x.status==='void'?' – void':''}`).join('; ')}). Save anyway?`))return;
         base.no=no;
       }
-      if(kind==='deposit')base.dref=(f.dref||'').trim();
+      if(kind==='deposit'){
+        base.dref=(f.dref||'').trim();base.pay=f.pay==='cheque'?'cheque':'cash';
+        if(base.pay==='cheque'){base.chk_bank=(f.chk_bank||'').trim();base.chk_no=(f.chk_no||'').trim();base.chk_date=isISO(f.chk_date)?f.chk_date:'';
+          if(!base.chk_no)return toast("Enter the customer's cheque number.",true)}
+        else{base.chk_bank='';base.chk_no='';base.chk_date=''}
+      }
       const id=isNew?Store.newId(C.txns):d.id;
       const prev=isNew?{}:noId(d.t);
       const next={...prev,...base,...created,kind,bank:f.bank,eff,status:statusOf(kind,eff)};
@@ -929,6 +1138,7 @@ async function saveEntry(f,again){
       let sum=`${isNew?'Added':'Edited'} ${label} ${peso(amt)} (${bankName(f.bank)})`;
       if(!isNew){const o=d.t,c=[];if(o.amt!==amt)c.push(`amount ${peso(o.amt)} → ${peso(amt)}`);if(o.date!==f.date)c.push(`date ${fd(o.date)} → ${fd(f.date)}`);if((o.eff||null)!==eff)c.push(`${kind==='cheque'?'release':'deposit'} date ${o.eff?fd(o.eff):'none'} → ${eff?fd(eff):'none'}`);if(o.bank!==f.bank)c.push(`account ${bankName(o.bank)} → ${bankName(f.bank)}`);if(c.length)sum+=': '+c.join(', ')}
       await commit([{id,isNew,rev:isNew?undefined:d.rev,next}],{action:isNew?'ADD':'EDIT',summary:sum});
+      if(kind==='deposit'){if(base.payee)listAdd('customers',base.payee,true);if(base.note)listAdd('particulars',base.note,true)}
     }
     toast(isNew?'Entry saved.':'Changes saved.');
     if(again&&isNew){const keepBank=f.bank,keepDate=f.date;S.dlg={id:null,t:{bank:keepBank,date:keepDate},kind,rev:0};drawEntry();const el=$('#fEntry [name=no]')||$('#fEntry [name=amt]');el&&el.focus()}
@@ -970,9 +1180,10 @@ document.addEventListener('click',async e=>{
     case 'menu':m.classList.toggle('open');break;
     case 'signOut':signOut();break;
     case 'myPw':m&&m.classList.remove('open');dlgMyPw();break;
-    case 'new':dlgEntry(null,S.route==='undep'?'deposit':'cheque');break;
+    case 'new':{const pref=S.route==='undep'?'deposit':S.route==='unrel'?'cheque':null;dlgEntry(null,pref&&kindAllowed(pref)?pref:['cheque','deposit','debit'].find(kindAllowed));break}
     case 'edit':if(e.target.closest('input,button:not([data-act=edit])'))return;dlgEntry(id);break;
     case 'close':closeDlg();break;
+    case 'payPick':{const box=$('#chkFields');if(box)box.style.display=el.value==='cheque'?'':'none';break}
     case 'kindPick':{const t=S.dlg.t||{};const form=$('#fEntry');if(form){const fdx=Object.fromEntries(new FormData(form));S.dlg.t={...t,bank:fdx.bank||t.bank,date:fdx.date||t.date,amt:parseAmt(fdx.amt)||t.amt,payee:fdx.payee,note:fdx.note,ref:fdx.ref}}S.dlg.kind=el.value;drawEntry();break}
     case 'toLedger':S.ui.lBank=id;break;
     case 'toOpen':S.ui.bank=id;break;
@@ -996,8 +1207,12 @@ document.addEventListener('click',async e=>{
     case 'allBanksToggle':$('#bankList').style.display=el.checked?'none':'';break;
     case 'copyPw':try{await navigator.clipboard.writeText(el.dataset.pw);toast('Copied.')}catch(err){toast('Select the text and copy it.',true)}break;
     case 'print':window.print();break;
-    case 'csvOpen':{const k=el.dataset.kind,cfg=openCfg(k);csvDownload(`${cfg.status}-${today()}.csv`,[[cfg.date,k==='cheque'?'Cheque no.':'OR/ref',`Account`,cfg.party,'Particulars','Amount','Age (days)'],...openRows(k).map(t=>[t.date,k==='cheque'?t.no:t.ref,bankName(t.bank),t.payee,t.note,plain(t.amt),daysBetween(t.date,today())])]);break}
-    case 'csvReg':csvDownload(`entries-${S.ui.rFrom}-to-${S.ui.rTo}.csv`,[['Date','Type','Account','Other account','Cheque no.','Ref','Payee/source','Particulars','Amount','Status','Release/deposit date','Deposit slip','Created by','Last changed by'],...regFiltered().map(t=>[t.date,t.xfer?(t.kind==='debit'?'Transfer out':'Transfer in'):KIND[t.kind],bankName(t.bank),t.xbank?bankName(t.xbank):'',t.no||'',t.ref||'',t.payee||'',t.note||'',plain(t.amt),t.status,t.kind==='cheque'||t.kind==='deposit'?(t.eff||''):'',t.dref||'',t.created_by||'',t.updated_by||''])]);break;
+    case 'bpend':setBankDate(id,{bpend:true});break;
+    case 'binbank':{const v=(document.getElementById('pb_'+id)||{}).value;if(!isISO(v))return toast('Enter the bank date.',true);setBankDate(id,{bdate:v,bpend:false});break}
+    case 'listDel':listRemove(el.dataset.list,el.dataset.v);break;
+    case 'csvStmt':{if(!S.stmtRows)return;const D=stmtData();csvDownload(`bank-statement-${D.b.name.replace(/[^\w-]+/g,'_')}-${D.from}-to-${D.to}.csv`,[['Bank date','Book date','Type','No./ref','APV/ref','Payee/customer','Particulars','Deposits & credits','Withdrawals','Balance'],[D.from,'','','','','Beginning balance','','','',plain(D.start)],...D.list.map(t=>t.opening?[t.bd,'','Opening','','','Opening balance','',plain(t._v),'',plain(t._run)]:[t.bd,t.eff,t.xfer?'Transfer':KIND[t.kind],t.kind==='cheque'?t.no:(t.ref||t.dref||''),t.kind==='cheque'?(t.ref||''):'',t.payee||'',t.note||'',t._v>0?plain(t._v):'',t._v<0?plain(-t._v):'',plain(t._run)])]);break}
+    case 'csvOpen':{const k=el.dataset.kind,cfg=openCfg(k);csvDownload(`${cfg.status}-${today()}.csv`,[[cfg.date,k==='cheque'?'Cheque no.':'OR/ref',...(k==='cheque'?['APV/ref']:[]),`Account`,...(k==='deposit'?['Collected as','Customer bank','Customer cheque no.','Cheque date']:[]),cfg.party,'Particulars','Amount','Age (days)'],...openRows(k).map(t=>[t.date,k==='cheque'?t.no:t.ref,...(k==='cheque'?[t.ref||'']:[]),bankName(t.bank),...(k==='deposit'?[payOf(t)==='cheque'?'Cheque':'Cash',t.chk_bank||'',t.chk_no||'',t.chk_date||'']:[]),t.payee,t.note,plain(t.amt),daysBetween(t.date,today())])]);break}
+    case 'csvReg':csvDownload(`entries-${S.ui.rFrom}-to-${S.ui.rTo}.csv`,[['Date','Type','Account','Other account','Cheque no.','Ref','Payee/source','Particulars','Amount','Status','Release/deposit date','Bank date','Deposit slip','Collected as','Customer bank','Customer cheque no.','Cheque date','Created by','Last changed by'],...regFiltered().map(t=>[t.date,t.xfer?(t.kind==='debit'?'Transfer out':'Transfer in'):KIND[t.kind],bankName(t.bank),t.xbank?bankName(t.xbank):'',t.no||'',t.ref||'',t.payee||'',t.note||'',plain(t.amt),t.status,t.kind==='cheque'||t.kind==='deposit'?(t.eff||''):'',t.bpend?'not yet in bank':(t.bd||''),t.dref||'',t.kind==='deposit'?(payOf(t)==='cheque'?'Cheque':'Cash'):'',t.chk_bank||'',t.chk_no||'',t.chk_date||'',t.created_by||'',t.updated_by||''])]);break;
     case 'csvLedger':{if(!S.ledgerRows)return;const b=bankById(S.ui.lBank);
       const all=S.ledgerRows.filter(t=>t.bank===b.id&&t.status!=='void'&&t.eff&&t.eff>=S.ui.lFrom);const openIn=b.open_date&&b.open_date>=S.ui.lFrom;
       let run=(b.bal||0)-all.reduce((s,t)=>s+bankSign(t),0)-(openIn?(b.open_amt||0):0);
@@ -1011,16 +1226,20 @@ document.addEventListener('click',async e=>{
 });
 document.addEventListener('input',e=>{
   const el=e.target;
+  if(el.dataset.combo){comboShow(el);return}
   if(el.dataset.draft){S.ui.drafts[el.dataset.draft]=el.value;return}
   if(el.dataset.ui&&(el.type==='search'||el.type==='text')){S.ui[el.dataset.ui]=el.value;if(el.dataset.ui!=='bulkRef')schedule()}
 });
 document.addEventListener('change',e=>{
   const el=e.target;
+  if(el.dataset.bdate){const v=el.value;if(v&&!isISO(v))return;setBankDate(el.dataset.bdate,{bdate:v||null,bpend:false});return}
+  if(el.name==='role'&&el.closest('#fUser')){const a=el.value==='ADMIN';$('#tabBox').style.display=a?'none':'';$('#tabAdminNote').style.display=a?'':'none';return}
   if(el.dataset.ui&&el.type!=='search'&&el.type!=='text'){
     const k=el.dataset.ui;
     if(el.type==='date'&&!isISO(el.value)){el.value=S.ui[k];return}
     S.ui[k]=el.value;
     if(k==='lFrom'&&S.ui.lTo<S.ui.lFrom)S.ui.lTo=S.ui.lFrom;
+    if(k==='sFrom'&&S.ui.sTo<S.ui.sFrom)S.ui.sTo=S.ui.sFrom;
     if(k==='rFrom'&&S.ui.rTo<S.ui.rFrom)S.ui.rTo=S.ui.rFrom;
     if(k==='rTo'&&S.ui.rTo<S.ui.rFrom)S.ui.rFrom=S.ui.rTo;
     if(k==='bank')S.ui.sel=new Set();
@@ -1052,6 +1271,7 @@ document.addEventListener('submit',async e=>{
       case 'fBankAcct':await saveBank(f);break;
       case 'fUser':await saveUser(f);break;
       case 'fReset':await saveReset(f);break;
+      case 'fList_customers':case 'fList_particulars':await listAdd(form.dataset.list,f.v);form.reset();break;
       case 'fOrg':try{await Store.set(C.settings+'/main',{...S.settings,org:(f.org||'').trim()});logAudit('SETTINGS',`Company name set to ${(f.org||'').trim()}`);toast('Saved.')}catch(err){toast(errMsg(err),true)}break;
     }
   }finally{btns.forEach(b=>{if(document.contains(b))b.disabled=false})}
