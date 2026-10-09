@@ -1,216 +1,1070 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Cash, Cheques & Deposits Tracker</title>
-<style>
-:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f4f6f9;--card:#fff;--tx:#1b2430;--mut:#667085;--ln:#e1e5ea;--pri:#1f3864;--pt:#fff;--ok:#1a7f4b;--warn:#a85d00;--bad:#c0392b;--hl:#eef2fa}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161c;--card:#1b222b;--tx:#e8ecf1;--mut:#9aa6b5;--ln:#2d3745;--pri:#4b73c9;--pt:#fff;--ok:#4cc38a;--warn:#e5a04a;--bad:#f0776a;--hl:#222c3a}}
-:root[data-theme="dark"]{--bg:#12161c;--card:#1b222b;--tx:#e8ecf1;--mut:#9aa6b5;--ln:#2d3745;--pri:#4b73c9;--pt:#fff;--ok:#4cc38a;--warn:#e5a04a;--bad:#f0776a;--hl:#222c3a}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
-main{max-width:1200px;margin:0 auto;padding:16px}h1{font-size:20px;margin:0}
-.top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.top h1{flex:1}
-.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-.tab{padding:8px 14px;border:1px solid var(--ln);background:var(--card);color:var(--tx);border-radius:8px;cursor:pointer;font:inherit}
-.tab.on{background:var(--pri);color:var(--pt);border-color:var(--pri)}
-.card{background:var(--card);border:1px solid var(--ln);border-radius:10px;padding:12px;margin-bottom:12px}
-.card h3{margin:0 0 8px;font-size:14px}.narrow{max-width:360px;margin:40px auto}.narrow input{width:100%;margin-bottom:8px}
-.frm{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.frm label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:2px}
-input,select{font:inherit;padding:6px 8px;border:1px solid var(--ln);border-radius:6px;background:var(--bg);color:var(--tx);min-width:0}
-.frm input,.frm select{width:150px}
-button.b{padding:7px 14px;border:0;border-radius:6px;background:var(--pri);color:var(--pt);cursor:pointer;font:inherit}
-button.x{border:1px solid var(--ln);background:none;color:var(--tx);border-radius:6px;padding:3px 8px;cursor:pointer;font:inherit;font-size:12px}
-button.r{color:var(--bad)}
-.w{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:640px}
-th,td{padding:7px 8px;border-bottom:1px solid var(--ln);text-align:left;white-space:nowrap}th{font-size:12px;color:var(--mut);font-weight:600}
-.n{text-align:right;font-variant-numeric:tabular-nums}tr.tot td{font-weight:700;background:var(--hl)}
-tr.v td{opacity:.5;text-decoration:line-through}.mut{color:var(--mut)}.ok{color:var(--ok)}.wn{color:var(--warn)}
-td input.in{width:140px}#err{color:var(--bad);min-height:18px;font-size:13px}.note{font-size:12px;color:var(--mut);margin:8px 0 0}
-.pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:var(--hl);color:var(--mut)}
-.pill.ok{background:rgba(26,127,75,.15);color:var(--ok)}.pill.bl{background:rgba(75,115,201,.16);color:var(--pri)}
-tr[data-act=uedit]{cursor:pointer}tr[data-act=uedit]:hover td{background:var(--hl)}
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:calc(24px + env(safe-area-inset-top,0px)) 12px 24px;overflow:auto;z-index:5}
-.ov[hidden]{display:none}.mod{max-width:720px;width:100%}.frm input[type=checkbox]{width:auto}.ck{flex-direction:row!important;align-items:center;gap:6px!important;color:var(--tx)!important;font-size:13px!important}
-</style></head>
-<body><main>
-<div id="err"></div>
-<div id="login" class="card narrow"><h3>Sign in</h3>
-  <input id="lu" placeholder="Email" autocomplete="username"><input id="lp" type="password" placeholder="Password" autocomplete="current-password">
-  <button class="b" data-act="login">Sign in</button></div>
-<div id="app" hidden>
-  <div class="top"><h1>Cash, Cheques &amp; Deposits Tracker</h1><span id="who" class="mut"></span>
-    <select id="fil" aria-label="Filter by bank account"></select>
-    <button class="x" data-act="tab" data-tab="pw">Change password</button><button class="x" data-act="out">Sign out</button></div>
-  <div class="bar" id="tabs"></div>
-  <section id="s-sum"><div class="card"><div class="w" id="sumT"></div>
-    <p class="note">Only transactions dated on/after a bank account's opening-balance date are counted. Book balance = opening + deposited items − all issued withdrawals. Available balance = opening + deposited − released withdrawals only. Bank balance = only items you marked as reflected in the bank (Reconciliation tab). Void items are excluded.</p></div></section>
-  <section id="s-acc" hidden><div id="f-accounts"></div><div class="card"><div class="w" id="accT"></div></div></section>
-  <section id="s-dep" hidden><div id="f-deposits"></div><div class="card"><div class="w" id="depT"></div></div></section>
-  <section id="s-wd" hidden><div id="f-withdrawals"></div><div class="card"><div class="w" id="wdT"></div></div></section>
-  <section id="s-und" hidden><div class="card"><h3>Received, not yet deposited</h3><div class="w" id="undT"></div><p class="note">Enter the date deposited to the bank. The item then moves to Deposits and counts toward the balances.</p></div></section>
-  <section id="s-unrel" hidden><div class="card"><h3>Issued, not yet released</h3><div class="w" id="unrelT"></div><p class="note">Enter the date released. The item then moves to Withdrawals as Released and counts toward the available balance.</p></div></section>
-  <section id="s-rec" hidden><div class="card"><h3>Book vs bank</h3><div class="w" id="recS"></div></div>
-    <div class="card"><div class="bar"><h3 style="margin:0">Match to bank</h3><select id="rf"><option value="">All items</option><option value="p">Pending only</option></select></div>
-    <div class="w" id="recT"></div><p class="note">Enter the actual date each transaction reflected in the bank statement. Only deposited and released items appear here.</p></div></section>
-  <section id="s-set" hidden>
-    <div class="top" style="align-items:flex-start"><div style="flex:1"><h2 style="margin:0 0 4px;font-size:22px">User accounts</h2><p class="mut" style="margin:0;max-width:640px">Everyone signs in with their own email and password. Each account opens only the bank accounts ticked for it. Click a row to edit its access.</p></div><button class="b" data-act="uadd">Add account</button></div>
-    <label class="mut" style="font-size:13px">Show accounts for<br><select id="uf" style="margin:4px 0 12px;min-width:240px"></select></label>
-    <div class="card"><div class="w" id="usrT"></div></div></section>
-  <section id="s-log" hidden><div class="card"><div class="w" id="logT"></div><p class="note">Latest 300 actions. Passwords are never recorded.</p></div></section>
-  <section id="s-pw" hidden><div class="card"><h3>Change my password</h3><div class="frm"><label>New password (min. 6 characters)<input id="np" type="password"></label><button class="b" data-act="pw">Update password</button></div></div></section>
-</div><div id="ov" class="ov" hidden><div class="card mod" id="mod"></div></div></main>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cash Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --bg:#eef2f1; --surface:#fff; --surface-2:#f6f8f8; --ink:#17262e; --muted:#5b6a72; --line:#d9e1df;
+  --accent:#0a6a86; --accent-soft:#e1f0f4; --on-accent:#fff;
+  --ok:#1b7148; --ok-soft:#e2f3ea; --warn:#9a5a00; --warn-soft:#fbf0dc; --bad:#ad2a22; --bad-soft:#fbe7e5;
+  --head:#0f2d38; --on-head:#eaf4f6; --radius:10px; --radius-sm:6px;
+  font-family:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--ink); background:var(--bg);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0e1619; --surface:#152025; --surface-2:#1a272d; --ink:#e3ecee; --muted:#93a4ab; --line:#26363d;
+  --accent:#4db3d0; --accent-soft:#163846; --on-accent:#06212b;
+  --ok:#5fca93; --ok-soft:#173528; --warn:#e7ab4f; --warn-soft:#3a2c14; --bad:#f07c72; --bad-soft:#3d1c1a;
+  --head:#0a1c23; --on-head:#dcebef; color-scheme:dark;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{margin:0 0 8px;line-height:1.25}
+h1{font-size:20px}h2{font-size:16px}h3{font-size:14px}
+a{color:var(--accent)}
+.muted{color:var(--muted)}.small{font-size:12px}.b{font-weight:600}
+.num,.n{font-variant-numeric:tabular-nums}.n{text-align:right;white-space:nowrap}
+.pos{color:var(--ok)}.neg{color:var(--bad)}
+header.top{background:var(--head);color:var(--on-head);position:sticky;top:0;z-index:20}
+.topbar{display:flex;align-items:center;gap:12px;padding:10px 16px;max-width:1280px;margin:0 auto}
+.brand{font-weight:700;font-size:16px;white-space:nowrap}.brand small{font-weight:400;opacity:.75;margin-left:6px}
+.spacer{flex:1}
+.live{font-size:12px;display:inline-flex;align-items:center;gap:6px;opacity:.9;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:#5fca93;display:inline-block}.dot.off{background:#e7ab4f}
+nav.tabs{display:flex;gap:2px;overflow-x:auto;padding:0 12px;max-width:1280px;margin:0 auto;scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs a{color:var(--on-head);opacity:.78;text-decoration:none;padding:9px 12px;border-bottom:3px solid transparent;white-space:nowrap;font-weight:500}
+nav.tabs a.on{opacity:1;border-bottom-color:#4db3d0}
+.badge{display:inline-block;min-width:18px;padding:0 6px;border-radius:9px;background:rgba(255,255,255,.18);font-size:11px;text-align:center;margin-left:4px}
+main{max-width:1280px;margin:0 auto;padding:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:var(--radius-sm);padding:7px 12px;cursor:pointer;white-space:nowrap;font-weight:500}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.sm{padding:4px 9px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.ghost{background:transparent;border-color:transparent;color:inherit}
+header .btn{background:transparent;color:var(--on-head);border-color:rgba(255,255,255,.3)}
+header .btn.primary{background:#4db3d0;color:#06212b;border-color:#4db3d0}
+input[type=text],input[type=password],input[type=date],input[type=number],input[type=search],select,textarea{
+  border:1px solid var(--line);background:var(--surface);border-radius:var(--radius-sm);padding:7px 9px;min-width:0}
+input:focus,select:focus,textarea:focus,.btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:500}
+label.f>input,label.f>select,label.f>textarea{font-size:14px;color:var(--ink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.span2{grid-column:span 2}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+.kpi .l{font-size:12px;color:var(--muted);font-weight:500}.kpi .v{font-size:22px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .s{font-size:12px;color:var(--muted)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+.card .big{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;margin:4px 0 10px}
+.kv{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
+.kv a{text-decoration:none}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius-sm)}
+table{border-collapse:collapse;width:100%;background:var(--surface)}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{font-size:12px;color:var(--muted);font-weight:600;background:var(--surface-2);white-space:nowrap;position:sticky;top:0}
+tr.click{cursor:pointer}tr.click:hover td{background:var(--surface-2)}
+tfoot td{font-weight:700;background:var(--surface-2)}
+tr.sel td{background:var(--accent-soft)}
+td input[type=date]{padding:4px 6px}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600;white-space:nowrap}
+.p-ok{background:var(--ok-soft);color:var(--ok)}.p-warn{background:var(--warn-soft);color:var(--warn)}
+.p-bad{background:var(--bad-soft);color:var(--bad)}.p-mute{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.p-info{background:var(--accent-soft);color:var(--accent)}
+.bulk{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;background:var(--accent-soft);border-radius:var(--radius-sm);padding:10px;margin-bottom:10px}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.note{background:var(--warn-soft);color:var(--warn);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px}
+.note.info{background:var(--accent-soft);color:var(--ink)}
+.note.bad{background:var(--bad-soft);color:var(--bad)}
+#dlgwrap{position:fixed;inset:0;background:rgba(5,15,20,.5);display:none;align-items:flex-start;justify-content:center;z-index:50;overflow-y:auto;padding:24px 12px}
+#dlgwrap.open{display:flex}
+.dlg{background:var(--surface);border-radius:var(--radius);width:100%;max-width:620px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.dlg .acts{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px}
+.seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.seg label{border:1px solid var(--line);border-radius:18px;padding:5px 12px;cursor:pointer;font-weight:500;font-size:13px}
+.seg label{position:relative}.seg input{position:absolute;opacity:0;width:1px;height:1px;margin:0}.seg input:checked+span{color:var(--accent)}.seg label:has(input:focus-visible){outline:2px solid var(--accent)}
+.seg label:has(input:checked){background:var(--accent-soft);border-color:var(--accent)}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
+.t{background:var(--head);color:var(--on-head);padding:10px 16px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.25);max-width:90vw}
+.t.err{background:var(--bad);color:#fff}
+.login{max-width:400px;margin:8vh auto;padding:0 16px}
+.login .panel{padding:24px}
+.login h1{margin-bottom:4px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.menu{position:relative}
+.menu .pop{position:absolute;right:0;top:calc(100% + 6px);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--radius-sm);min-width:200px;box-shadow:0 8px 24px rgba(0,0,0,.18);display:none;z-index:30}
+.menu.open .pop{display:block}
+.menu .pop button{display:block;width:100%;text-align:left;background:none;border:0;padding:9px 14px;cursor:pointer}
+.menu .pop button:hover{background:var(--surface-2)}
+.menu .pop .who{padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+.demo{background:var(--warn);color:#fff;text-align:center;font-size:12px;padding:3px}
+.chk{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--ink)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:15px;letter-spacing:.5px;background:var(--surface-2);padding:6px 10px;border-radius:6px;border:1px solid var(--line);user-select:all}
+@media (max-width:820px){.kpis{grid-template-columns:1fr 1fr}.two{grid-template-columns:1fr}}
+@media (max-width:560px){.grid2,.grid3{grid-template-columns:1fr}.span2{grid-column:auto}.kpi .v{font-size:18px}.topbar .live{display:none}.brand small{display:none}main{padding:12px}}
+@media print{header.top,.noprint,.bulk,#toast{display:none!important}body{background:#fff}.panel{border:0;padding:0}main{max-width:none}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="dlgwrap"><div class="dlg" id="dlg" role="dialog" aria-modal="true"></div></div>
+<div id="toast"></div>
 <script>
-const $=s=>document.querySelector(s),E=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt=n=>(+n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
-const sum=l=>l.reduce((s,x)=>s+(+x.amount||0),0),val=id=>$('#'+id).value.trim(),msg=t=>{$('#err').textContent=t||''};
-// ===== Firebase web app config (project database-55b53) =====
-const FB={apiKey:'AIzaSyBfrdsMbfhQn4uF8HbZSkCx2kOLnNClfwY',authDomain:'database-55b53.firebaseapp.com',projectId:'database-55b53',storageBucket:'database-55b53.firebasestorage.app',messagingSenderId:'706968150921',appId:'1:706968150921:web:575c3860ae843e419cb758'};
-let db,auth,sec,justIn=false,me=null,cfg=null,U=[],A=[],D=[],W=[],LG=[],fAcc='',editing={},started=false,restored=false,ur=false,cr=false,built=false;
-const PK=[['sum','Summary'],['acc','Bank Accounts'],['dep','Deposits'],['wd','Withdrawals'],['rec','Reconciliation']];
-const TABS=[...PK.slice(0,3),['und','Undeposited'],PK[3],['unrel','Unreleased Cheques'],PK[4]];
-const lvl=k=>!me?'none':me.role==='admin'?'edit':(k==='set'||k==='log')?'none':((me.perms||{})[{und:'dep',unrel:'wd'}[k]||k]||'none');
-const ed=k=>lvl(k)==='edit',L=c=>({accounts:A,deposits:D,withdrawals:W}[c]);
-const accName=id=>(A.find(a=>a.id===id)||{name:'(deleted account)'}).name;
-const SCH={
-accounts:{t:'Bank Account',k:'acc',f:[['name','Account name','text'],['number','Account no.','text'],['opening','Opening balance','number'],['openingDate','Opening balance as of (date)','date']]},
-deposits:{t:'Deposit',k:'dep',f:[['type','Type','sel:Cheque,Cash'],['from','Received from','text'],['purpose','Purpose (for what)','text'],['accountId','Deposit to bank','acct'],['refNo','Cheque no. / ref','text'],['dateIssued','Date on cheque (issued)','date'],['dateDeposited','Date deposited to bank','date'],['amount','Amount','number']]},
-withdrawals:{t:'Withdrawal',k:'wd',f:[['type','Type','sel:Cheque,Cash'],['payee','Payee','text'],['purpose','Purpose (for what)','text'],['accountId','Withdraw from bank','acct'],['refNo','Cheque no.','text'],['dateIssued','Date on cheque (issued)','date'],['dateReleased','Date released','date'],['amount','Amount','number']]}};
-async function log(action,detail,who){try{await db.collection('logs').add({ts:firebase.firestore.FieldValue.serverTimestamp(),user:who||(me&&me.username)||'?',action,detail:detail||''})}catch(e){}}
-const desc=(c,r)=>c==='accounts'?(r.name||''):c==='users'?(r.username||''):`${r.type||''} ${r.refNo||''} ${fmt(r.amount)} · ${accName(r.accountId)}`.trim();
-function diff(o,n){const ch=[];for(const k in n){if(k==='ts'||k==='order')continue;const a=o[k]??'',b=n[k]??'';if(String(a)!==String(b))ch.push(`${k}: ${k==='accountId'?accName(a):a||'—'} → ${k==='accountId'?accName(b):b||'—'}`)}return ch.length?' | '+ch.join('; '):''}
-function calc(a){const od=a.openingDate||'',op=+a.opening||0,cnt=d=>!od||!d||d>=od,ok=x=>x.accountId===a.id&&!x.void;
- const dep=D.filter(x=>ok(x)&&x.dateDeposited&&cnt(x.dateDeposited)),und=D.filter(x=>ok(x)&&!x.dateDeposited),wd=W.filter(x=>ok(x)&&cnt(x.dateIssued));
- const rel=wd.filter(x=>x.dateReleased),bD=dep.filter(x=>x.bankDate),bW=rel.filter(x=>x.bankDate);
- return{op,dep:sum(dep),und:sum(und),iss:sum(wd),rel:sum(rel),book:op+sum(dep)-sum(wd),av:op+sum(dep)-sum(rel),bank:op+sum(bD)-sum(bW),pend:dep.length-bD.length+rel.length-bW.length}}
-const tbl=(h,rows,foot)=>rows.length?`<table><thead><tr>${h.map(x=>`<th class="${x[1]||''}">${x[0]}</th>`).join('')}</tr></thead><tbody>${rows.join('')}${foot||''}</tbody></table>`:'<p class="mut">Nothing here yet.</p>';
-const tr=(c,cls,at)=>`<tr class="${cls||''}"${at||''}>${c.map(x=>Array.isArray(x)?`<td class="${x[1]}">${x[0]}</td>`:`<td>${x}</td>`).join('')}</tr>`;
-const btn=(act,col,id,t,c)=>`<button class="x ${c||''}" data-act="${act}" data-col="${col}" data-id="${E(id)}">${t}</button>`;
-const acts=(k,col,x)=>ed(k)?btn('edit',col,x.id,'Edit')+' '+(col==='accounts'?'':btn('void',col,x.id,x.void?'Restore':'Void')+' ')+btn('del',col,x.id,'Delete','r'):'';
-function form(col){const s=SCH[col];return`<div class="card" id="fc-${col}"><h3 id="${col}_h">Add ${s.t}</h3><div class="frm">`+s.f.map(([k,l,t])=>`<label>${l}`+(t.startsWith('sel:')?`<select id="${col}_${k}">${t.slice(4).split(',').map(o=>`<option>${o}</option>`).join('')}</select>`:t==='acct'?`<select id="${col}_${k}" class="acs"></select>`:`<input id="${col}_${k}" type="${t}"${t==='number'?' step="0.01"':''}>`)+'</label>').join('')+`<button class="b" id="${col}_b" data-act="save" data-col="${col}">Add</button><button class="x" id="${col}_c" data-act="cancel" data-col="${col}" hidden>Cancel</button></div></div>`}
-const ps=(id,k,v)=>`<select data-act="perm" data-id="${E(id)}" data-k="${k}">${['none','view','edit'].map(o=>`<option${o===v?' selected':''}>${o}</option>`).join('')}</select>`;
-function build(){if(built)return;built=true;
- for(const c in SCH){$('#f-'+c).innerHTML=form(c);$('#fc-'+c).hidden=!ed(SCH[c].k)}}
-function opts(){const o=A.map(a=>`<option value="${E(a.id)}">${E(a.name)}</option>`).join('');
- document.querySelectorAll('.acs').forEach(s=>{const v=s.value;s.innerHTML=o||'<option value="">Add a bank account first</option>';if(v)s.value=v});
- const uv=$('#uf').value;$('#uf').innerHTML='<option value="">All bank accounts</option>'+o;$('#uf').value=uv;const f=$('#fil');f.innerHTML='<option value="">All accounts</option>'+o;f.value=fAcc}
-function render(){if(!me||!built)return;opts();
- const R=A.filter(a=>!fAcc||a.id===fAcc).map(a=>({a,c:calc(a)})),T=k=>R.reduce((s,r)=>s+r.c[k],0);
- $('#sumT').innerHTML=tbl([['Bank account'],['Opening balance','n'],['Deposited','n'],['Received, not yet deposited','n'],['Withdrawals issued','n'],['Released','n'],['Book balance','n'],['Available balance','n'],['Bank balance (reconciled)','n']],
-  R.map(({a,c})=>tr([`<b>${E(a.name)}</b><div class="mut">${E(a.number)}</div>`,[fmt(c.op)+`<div class="mut">as of ${E(a.openingDate||'—')}</div>`,'n'],[fmt(c.dep),'n'],[fmt(c.und),'n'],[fmt(c.iss),'n'],[fmt(c.rel),'n'],[`<b>${fmt(c.book)}</b>`,'n'],[`<b>${fmt(c.av)}</b>`,'n'],[fmt(c.bank),'n']])),
-  tr(['TOTAL',...['op','dep','und','iss','rel','book','av','bank'].map(k=>[fmt(T(k)),'n'])],'tot'));
- $('#accT').innerHTML=tbl([['Account name'],['Account no.'],['Opening balance','n'],['As of'],['']],A.map(a=>tr([`<b>${E(a.name)}</b>`,E(a.number),[fmt(a.opening),'n'],E(a.openingDate),acts('acc','accounts',a)])));
- for(const col of ['deposits','withdrawals']){const dp=col==='deposits',k=dp?'dep':'wd',rows=L(col).filter(x=>!fAcc||x.accountId===fAcc).sort((a,b)=>(b.dateIssued||'').localeCompare(a.dateIssued||'')||(b.ts||0)-(a.ts||0));
-  $(dp?'#depT':'#wdT').innerHTML=tbl([['Date on cheque'],['Type'],[dp?'Ref / cheque no.':'Cheque no.'],[dp?'Received from':'Payee'],['Purpose'],[dp?'Deposit to':'Withdraw from'],['Amount','n'],[dp?'Date deposited':'Date released'],['Status'],['']],
-   rows.map(x=>{const st=x.void?'Void':dp?(x.dateDeposited?'Deposited':'Not yet deposited'):(x.dateReleased?'Released':'Unreleased');
-    return tr([E(x.dateIssued),E(x.type),E(x.refNo),E(dp?x.from:x.payee),E(x.purpose),E(accName(x.accountId)),[fmt(x.amount),'n'],E(dp?x.dateDeposited:x.dateReleased),`<span class="${st==='Deposited'||st==='Released'?'ok':st==='Void'?'':'wn'}">${st}</span>`,acts(k,col,x)],x.void?'v':'')}),
-   tr(['Total (excl. void)','','','','','',[fmt(sum(rows.filter(x=>!x.void))),'n'],'','',''],'tot'))}
- for(const[col,el,f,h,who]of[['deposits','#undT','dateDeposited','Date deposited','from'],['withdrawals','#unrelT','dateReleased','Date released','payee']]){const k=col==='deposits'?'dep':'wd',rows=L(col).filter(x=>!x.void&&!x[f]&&(!fAcc||x.accountId===fAcc)).sort((a,b)=>(a.dateIssued||'').localeCompare(b.dateIssued||''));
-  $(el).innerHTML=tbl([['Date on cheque'],['Type'],['Ref / cheque no.'],[who==='from'?'Received from':'Payee'],['Purpose'],[who==='from'?'Deposit to':'Withdraw from'],['Amount','n'],[h]],
-   rows.map(x=>tr([E(x.dateIssued),E(x.type),E(x.refNo),E(x[who]),E(x.purpose),E(accName(x.accountId)),[fmt(x.amount),'n'],ed(k)?`<input class="in" type="date" data-act="setd" data-col="${col}" data-f="${f}" data-id="${E(x.id)}">`:'—'])),
-   tr(['Total pending','','','','','',[fmt(sum(rows)),'n'],''],'tot'))}
- const all=A.filter(a=>!fAcc||a.id===fAcc);
- $('#recS').innerHTML=tbl([['Bank account'],['Book balance','n'],['Bank balance','n'],['Difference (outstanding)','n'],['Pending items','n']],all.map(a=>{const c=calc(a);return tr([`<b>${E(a.name)}</b>`,[fmt(c.book),'n'],[fmt(c.bank),'n'],[fmt(c.book-c.bank),'n'],[c.pend,'n']])}));
- const it=[...D.filter(x=>!x.void&&x.dateDeposited).map(x=>({c:'deposits',x,dt:x.dateDeposited,s:1,k:'Deposit',d:`${x.from||''} ${x.purpose||''}`})),...W.filter(x=>!x.void&&x.dateReleased).map(x=>({c:'withdrawals',x,dt:x.dateReleased,s:-1,k:'Withdrawal',d:`${x.payee||''} ${x.purpose||''}`}))]
-  .filter(i=>(!fAcc||i.x.accountId===fAcc)&&($('#rf').value!=='p'||!i.x.bankDate)).sort((a,b)=>b.dt.localeCompare(a.dt));
- $('#recT').innerHTML=tbl([['Date'],['Kind'],['Ref'],['Description'],['Bank'],['Amount','n'],['Date reflected in bank'],['Status']],it.map(i=>tr([E(i.dt),i.k,E(i.x.type+' '+(i.x.refNo||'')),E(i.d),E(accName(i.x.accountId)),[(i.s<0?'-':'')+fmt(i.x.amount),'n'],ed('rec')?`<input class="in" type="date" data-act="bank" data-col="${i.c}" data-id="${E(i.x.id)}" value="${E(i.x.bankDate||'')}">`:E(i.x.bankDate),i.x.bankDate?'<span class="ok">Reconciled</span>':'<span class="wn">Pending</span>'])));
- if(me.role==='admin'){
-  const pill=(t,c)=>`<span class="pill ${c||''}">${t}</span>`,dt=ts=>{if(!ts)return'—';const d=new Date(ts);return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})},uf=$('#uf').value;
-  const accTxt=u=>u.allAcc===false?((u.accIds||[]).map(accName).join(', ')||'None'):'All bank accounts';
-  $('#usrT').innerHTML=tbl([['Email'],['Name'],['Role'],['Department'],['Bank accounts'],['Access'],['Status'],['Updated']],[
-   ...U.slice().sort((a,b)=>(b.admin?1:0)-(a.admin?1:0)).filter(u=>!uf||u.allAcc!==false||(u.accIds||[]).includes(uf)).map(u=>tr([`<b>${E(u.username)}</b>${u.admin?' '+pill('Main admin','bl'):''}${u.id===me.id?' <span class="mut">You</span>':''}`,E(u.name),E(u.admin?(u.jr||'Admin'):u.jr),E(u.dept),E(accTxt(u)),u.admin?pill('Full','bl'):'<span class="mut">Custom</span>',u.active===false?pill('Disabled'):pill('Active','ok'),dt(u.upd)],'',` data-act="uedit" data-id="${E(u.id)}"`))]);
-  $('#logT').innerHTML=tbl([['When'],['User'],['Action'],['Details']],LG.map(l=>tr([E(new Date(l.ts&&l.ts.toMillis?l.ts.toMillis():(l.ts||Date.now())).toLocaleString('en-PH')),E(l.user),E(l.action),E(l.detail)])))}}
-function show(t){document.querySelectorAll('section').forEach(s=>s.hidden=s.id!=='s-'+t);document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===t))}
-function resetForm(c){delete editing[c];for(const[k,,t]of SCH[c].f){const e=$(`#${c}_${k}`);if(e.tagName==='SELECT')e.selectedIndex=0;else e.value=t==='number'&&c==='accounts'?'0':''}
- $(`#${c}_h`).textContent='Add '+SCH[c].t;$(`#${c}_b`).textContent='Add';$(`#${c}_c`).hidden=true}
-async function saveRow(c){const s=SCH[c],d={};for(const[k,,t]of s.f){const v=val(`${c}_${k}`);d[k]=t==='number'?(parseFloat(v)||0):v}
- if(!ed(s.k))return;
- if(c==='accounts'){if(!d.name)return msg('Enter an account name.');if(A.some(a=>a.id!==editing[c]&&a.name.toLowerCase()===d.name.toLowerCase()))return msg('That account name already exists.')}
- else{if(!d.accountId)return msg('Pick a bank account (add one in Bank Accounts first).');if(!(d.amount>0))return msg('Enter an amount.')}
- const id=editing[c];
- try{if(id){const o=L(c).find(x=>x.id===id)||{};await db.collection(c).doc(id).update(d);log('Edited '+s.t,desc(c,d)+diff(o,d))}
-  else{d.ts=Date.now();if(c==='accounts')d.order=d.ts;await db.collection(c).add(d);log('Added '+s.t,desc(c,d))}
-  resetForm(c);msg('')}catch(e){msg('Could not save: '+(e.code||e.message))}}
-async function login(){const u=val('lu').toLowerCase(),p=$('#lp').value;if(!u||!p)return msg('Enter your email and password.');
- try{justIn=true;await auth.signInWithEmailAndPassword(u,p);$('#lp').value=''}catch(e){justIn=false;const c=e.code||'';msg(['auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-email'].includes(c)?'Invalid email or password.':c==='auth/operation-not-allowed'?'Email/Password sign-in is not turned on in Firebase Authentication.':'Sign-in failed ('+(c||e.message)+').')}}
-function enter(usr,fresh){me=usr;try{sessionStorage.setItem('ct_u',usr.username)}catch(e){}
- msg('');if(fresh)log('Signed in');build();$('#login').hidden=true;$('#app').hidden=false;
- $('#who').textContent=`${me.name||me.username} (${me.role})`;
- const vis=[...TABS.filter(([k])=>lvl(k)!=='none'),...(me.role==='admin'?[['set','User Settings'],['log','User Log']]:[])];
- $('#tabs').innerHTML=vis.map(([k,l])=>`<button class="tab" data-act="tab" data-tab="${k}">${l}</button>`).join('')||'<span class="mut">No access has been granted to this account. Please contact the administrator.</span>';
- if(vis.length)show(vis[0][0]);else document.querySelectorAll('section').forEach(s=>s.hidden=true);
- if(!started){started=true;const er=e=>msg('Storage error: '+(e.code||e.message)),mp=s=>s.docs.map(d=>({id:d.id,...d.data()}));
-  if(me.role==='admin'||me.allAcc!==false){
-   db.collection('accounts').onSnapshot(s=>{A=mp(s).sort((a,b)=>(a.order||0)-(b.order||0));render()},er);
-   db.collection('deposits').onSnapshot(s=>{D=mp(s);render()},er);db.collection('withdrawals').onSnapshot(s=>{W=mp(s);render()},er)}
-  else{const bA={},bD={},bW={},mg=()=>{A=Object.values(bA).filter(Boolean).sort((a,b)=>(a.order||0)-(b.order||0));D=Object.values(bD).flat();W=Object.values(bW).flat();render()};
-   for(const id of me.accIds||[]){db.collection('accounts').doc(id).onSnapshot(s=>{bA[id]=s.exists?{id:s.id,...s.data()}:null;mg()},er);
-    db.collection('deposits').where('accountId','==',id).onSnapshot(s=>{bD[id]=mp(s);mg()},er);db.collection('withdrawals').where('accountId','==',id).onSnapshot(s=>{bW[id]=mp(s);mg()},er)}}
-  if(me.role==='admin'){db.collection('logs').orderBy('ts','desc').limit(300).onSnapshot(s=>{LG=mp(s);render()},er);db.collection('users').onSnapshot(s=>{U=mp(s);render()},er)}}
- render()}
-const okA=id=>me.role==='admin'||me.allAcc!==false||(me.accIds||[]).includes(id);
-let editU=null;
-const flat=x=>({name:x.name,role:x.jr,department:x.dept,bank_accounts:x.allAcc===false?(x.accIds||[]).map(accName).join(', '):'All',...Object.fromEntries(PK.map(([k])=>['access_'+k,(x.perms||{})[k]||'none']))});
-function closeU(){editU=null;$('#ov').hidden=true}
-function openU(id){const u=id?U.find(x=>x.id===id):null;if(id&&!u)return;editU=id||null;const pm=(u&&u.perms)||{},all=!u||u.allAcc!==false,ids=(u&&u.accIds)||[];
- $('#mod').innerHTML=`<h3>${u?'Edit account':'Add account'}</h3><div class="frm"><label>Email / username<input id="mU" value="${E(u?u.username:'')}"${u?' disabled':''}></label><label>Name<input id="mN" value="${E(u?u.name:'')}"></label><label>Role<input id="mR" value="${E(u?u.jr:'')}" placeholder="e.g. Cashier"></label><label>Department<input id="mD" value="${E(u?u.dept:'')}"></label>${u?'':'<label>Password (min. 6 characters)<input id="mP" type="password" autocomplete="new-password"></label>'}</div>
- <h3 style="margin-top:14px">Bank accounts this person can open</h3><div class="frm"><label class="ck"><input type="checkbox" id="mAll"${all?' checked':''}> All bank accounts</label>${A.map(a=>`<label class="ck"><input type="checkbox" class="mA" value="${E(a.id)}"${ids.includes(a.id)?' checked':''}> ${E(a.name)}</label>`).join('')}</div>
- <h3 style="margin-top:14px">Access per tab</h3><div class="frm">${PK.map(([k,l])=>`<label>${l}<select id="mp_${k}">${['none','view','edit'].map(o=>`<option${o===(pm[k]||'none')?' selected':''}>${o}</option>`).join('')}</select></label>`).join('')}</div>
- <p class="note">None = tab hidden · View = read only · Edit = can add, change, void and delete. Undeposited follows Deposits; Unreleased Cheques follows Withdrawals.</p>
- <div class="frm" style="margin-top:12px"><button class="b" data-act="usave">Save</button><button class="x" data-act="ucancel">Cancel</button>${u?btn('ureset','users',u.id,'Send password reset email')+' '+(u.id===me.id?'':btn('utog','users',u.id,u.active===false?'Enable account':'Disable account')+' '+btn('del','users',u.id,'Delete','r')):''}</div>`;
- $('#ov').hidden=false}
-document.addEventListener('click',async e=>{const b=e.target.closest('[data-act]');if(!b||/^(SELECT|INPUT)$/.test(b.tagName))return;const{act,col,id}=b.dataset;
- try{
- if(act==='tab')return show(b.dataset.tab);
- if(act==='login')return login();
- if(act==='out'){await log('Signed out');await auth.signOut();location.reload();return}
- if(act==='uadd')return openU(null);
- if(act==='uedit')return openU(id);
- if(act==='ucancel')return closeU();
- if(act==='usave'){const uid=editU,u=uid?U.find(x=>x.id===uid):null,un=u?u.username:val('mU').toLowerCase(),p=u?'':$('#mP').value;
-  if(!/^\S+@\S+\.\S+$/.test(un))return msg('Enter a valid email address.');
-  if(!u&&p.length<6)return msg('Password must be at least 6 characters.');
-  const perms={};for(const[k]of PK)perms[k]=val('mp_'+k);const allAcc=$('#mAll').checked,accIds=[...document.querySelectorAll('.mA:checked')].map(x=>x.value);
-  if(!allAcc&&!accIds.length)return msg('Tick at least one bank account, or choose All bank accounts.');
-  const d={name:val('mN')||un,jr:val('mR'),dept:val('mD'),perms,allAcc,accIds,upd:Date.now()};
-  if(u){await db.collection('users').doc(uid).update(d);log('Edited User',un+diff(flat(u),flat(d)))}
-  else{if(U.some(x=>x.username===un))return msg('That email is already used.');
-   sec=sec||firebase.initializeApp(FB,'sec');let nu;try{nu=await sec.auth().createUserWithEmailAndPassword(un,p)}catch(x){return msg('Could not create the account: '+x.code)}
-   await sec.auth().signOut();d.username=un;d.active=true;await db.collection('users').doc(nu.user.uid).set(d);log('Added User',un)}
-  closeU();msg('');return}
- if(act==='save')return saveRow(col);
- if(act==='cancel')return resetForm(col);
- if(act==='edit'){const r=L(col).find(x=>x.id===id);if(!r)return;editing[col]=id;for(const[k]of SCH[col].f)$(`#${col}_${k}`).value=r[k]??'';
-  $(`#${col}_h`).textContent='Edit '+SCH[col].t;$(`#${col}_b`).textContent='Save changes';$(`#${col}_c`).hidden=false;$(`#${col}_h`).scrollIntoView({block:'center'});return}
- if(act==='void'){const r=L(col).find(x=>x.id===id);if(!r)return;await db.collection(col).doc(id).update({void:!r.void});log(r.void?'Restored':'Voided',desc(col,r));return}
- if(act==='del'){if(!b.dataset.arm){b.dataset.arm=1;b.textContent='Sure?';setTimeout(()=>{delete b.dataset.arm;b.textContent='Delete'},3000);return}
-  const r=col==='users'?U.find(x=>x.id===id)||{}:L(col).find(x=>x.id===id)||{};
-  if(col==='accounts'&&(D.some(x=>x.accountId===id)||W.some(x=>x.accountId===id)))return msg('This account has transactions and cannot be deleted.');
-  await db.collection(col).doc(id).delete();log('Deleted '+(col==='users'?'User':SCH[col].t),desc(col,r));if(col==='users')closeU();return}
- if(act==='utog'){const u=U.find(x=>x.id===id);if(!u)return;await db.collection('users').doc(id).update({active:u.active===false});log(u.active===false?'Enabled User':'Disabled User',u.username);closeU();return}
- if(act==='pw'){const p=$('#np').value;if(p.length<6)return msg('Password must be at least 6 characters.');
-  try{await auth.currentUser.updatePassword(p)}catch(x){return msg(x.code==='auth/requires-recent-login'?'For security, sign out, sign in again, then change your password.':'Could not update: '+x.code)}
-  log('Changed own password');$('#np').value='';msg('Password updated.');return}
- if(act==='ureset'){const u=U.find(x=>x.id===id);if(!u)return;try{await auth.sendPasswordResetEmail(u.username);log('Sent password reset email',u.username);msg('Password reset email sent to '+u.username)}catch(x){msg('Could not send: '+x.code)}return}
- }catch(x){msg('Could not save: '+(x.code||x.message))}});
-document.addEventListener('change',async e=>{const t=e.target,a=t.dataset.act;
- try{
- if(t.id==='fil'){fAcc=t.value;render()}else if(t.id==='rf'||t.id==='uf')render();
- else if(a==='bank'&&ed('rec')){const r=L(t.dataset.col).find(x=>x.id===t.dataset.id)||{};await db.collection(t.dataset.col).doc(t.dataset.id).update({bankDate:t.value});log(t.value?'Reconciled':'Un-reconciled',desc(t.dataset.col,r)+(t.value?' → bank date '+t.value:''))}
- else if(a==='setd'&&t.value&&ed(t.dataset.col==='deposits'?'dep':'wd')){const c=t.dataset.col,r=L(c).find(x=>x.id===t.dataset.id)||{};await db.collection(c).doc(t.dataset.id).update({[t.dataset.f]:t.value});log(c==='deposits'?'Marked deposited':'Marked released',desc(c,r)+' → '+t.value)}
- else if(a==='perm'&&me.role==='admin'){const u=U.find(x=>x.id===t.dataset.id);if(!u)return;await db.collection('users').doc(u.id).update({perms:{...(u.perms||{}),[t.dataset.k]:t.value}});log('Changed access',`${u.username}: ${t.dataset.k} = ${t.value}`)}
- }catch(x){msg('Could not save: '+(x.code||x.message))}});
-$('#lp').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
-(async()=>{
- if(!window.firebase||String(FB.apiKey).startsWith('PASTE')){$('#login').innerHTML='<h3>Setup needed</h3><p class="mut">Paste your Firebase web app config into FB at the top of the script (see the setup steps).</p>';return}
- firebase.initializeApp(FB);const raw=firebase.firestore();auth=firebase.auth();
- db={collection:n=>raw.collection('cash_'+n),doc:p=>raw.doc('cash_'+p)};
- auth.onAuthStateChanged(async u=>{if(!u)return;
-  try{const sn=await db.collection('users').doc(u.uid).get(),d=sn.exists?sn.data():null;
-   if(!d||d.active===false){await auth.signOut();return msg('This account has no access. Please contact the administrator.')}
-   const f=justIn;justIn=false;enter({...d,id:u.uid,username:u.email,role:d.admin?'admin':'user'},f)}
-  catch(e){await auth.signOut();msg('Could not load your profile: '+(e.code||e.message))}});
+'use strict';
+/* ================= Firebase connection (project: database-55b53) =================
+   This tracker keeps its own data in the cash_* collections only:
+   cash_users, cash_banks, cash_txns, cash_audit, cash_settings. It never reads or changes the payroll data. */
+const FIREBASE_CONFIG = window.FIREBASE_CONFIG || {
+  apiKey:"AIzaSyBfrdsMbfhQn4uF8HbZSkCx2kOLnNClfwY",
+  authDomain:"database-55b53.firebaseapp.com",
+  projectId:"database-55b53",
+  storageBucket:"database-55b53.firebasestorage.app",
+  messagingSenderId:"706968150921",
+  appId:"1:706968150921:web:e25fb80011714f889cb758"
+};
+const DEMO = /[?&]demo\b/.test(location.search);
+const C = {users:'cash_users', banks:'cash_banks', txns:'cash_txns', audit:'cash_audit', settings:'cash_settings'};
+
+/* ================= Small helpers ================= */
+const $ = s => document.querySelector(s);
+const h = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2,'0');
+const isoOf = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const today = () => isoOf(new Date());
+const monthStart = () => today().slice(0,8)+'01';
+const addDays = (iso,n) => {const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return isoOf(d)};
+const daysBetween = (a,b) => Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/864e5);
+const isISO = s => /^\d{4}-\d{2}-\d{2}$/.test(s||'');
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fd = iso => iso ? `${MON[+iso.slice(5,7)-1]} ${+iso.slice(8,10)}, ${iso.slice(0,4)}` : '';
+const fdt = iso => {if(!iso)return '';const d=new Date(iso);return `${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} ${d.toLocaleTimeString('en-PH',{hour:'numeric',minute:'2-digit'})}`};
+const money = c => (Math.abs(c||0)/100).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const peso = c => ((c||0)<0?'−':'')+'₱'+money(c);
+const plain = c => ((c||0)/100).toFixed(2);
+function parseAmt(s){const t=String(s??'').replace(/[₱,\s]/g,'');if(!/^\d+(\.\d{0,2})?$/.test(t)&&!/^\.\d{1,2}$/.test(t))return NaN;return Math.round(parseFloat(t)*100)}
+const nowISO = () => new Date().toISOString();
+const clone = o => o==null?o:JSON.parse(JSON.stringify(o));
+const noId = o => {const c={...o};delete c.id;for(const k of Object.keys(c))if(c[k]===undefined)delete c[k];return c};
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+function toast(msg,err){const t=document.createElement('div');t.className='t'+(err?' err':'');t.textContent=msg;$('#toast').appendChild(t);setTimeout(()=>t.remove(),err?6000:3200)}
+function errMsg(e){
+  const c=String(e&&e.code||'');
+  if(c.includes('permission'))return 'Firestore refused the request (permission denied). Add the cash_* rules from the README in Firebase → Firestore → Rules.';
+  if(c.includes('unavailable')||c.includes('failed-precondition')&&/offline/i.test(e.message||''))return 'No connection to the database. Check the internet and try again.';
+  return (e&&e.message)||String(e);
+}
+function csvDownload(name,rows){
+  const esc=v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  const blob=new Blob(['﻿'+rows.map(r=>r.map(esc).join(',')).join('\r\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+}
+
+/* ================= Data store: Firestore (live) or this-browser demo ================= */
+function makeRemote(){
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const db=firebase.firestore();
+  try{db.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}
+  const q=(col,where=[],o={})=>{let r=db.collection(col);for(const w of where)r=r.where(w[0],w[1],w[2]);if(o.orderBy)r=r.orderBy(o.orderBy[0],o.orderBy[1]||'asc');if(o.limit)r=r.limit(o.limit);return r};
+  const wrap=s=>s.exists?{...s.data(),id:s.id}:null;
+  return {
+    listen(col,where,cb,onErr,o={}){return q(col,where,o).onSnapshot({includeMetadataChanges:!!o.meta},s=>cb(s.docs.map(d=>({...d.data(),id:d.id})),s.metadata),e=>onErr&&onErr(e))},
+    listenDoc(path,cb,onErr){return db.doc(path).onSnapshot(s=>cb(wrap(s)),e=>onErr&&onErr(e))},
+    async get(path){return wrap(await db.doc(path).get())},
+    async getServer(path){return wrap(await db.doc(path).get({source:'server'}))},
+    async query(col,where,o){const s=await q(col,where,o).get();return s.docs.map(d=>({...d.data(),id:d.id}))},
+    set(path,d){return db.doc(path).set(d)},
+    update(path,d){return db.doc(path).update(d)},
+    del(path){return db.doc(path).delete()},
+    newId(col){return db.collection(col).doc().id},
+    inc(n){return firebase.firestore.FieldValue.increment(n)},
+    tx(fn){return db.runTransaction(T=>fn({
+      async get(p){return wrap(await T.get(db.doc(p)))},
+      set(p,d){T.set(db.doc(p),d)}, update(p,d){T.update(db.doc(p),d)}, del(p){T.delete(db.doc(p))}
+    }))}
+  };
+}
+function makeLocal(){
+  const KEY='cash-tracker-demo-v1';let data={};
+  try{data=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){data={}}
+  const subs=new Set();
+  const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}};
+  const notify=()=>setTimeout(()=>subs.forEach(f=>f()),0);
+  const cmp=(a,op,b)=>op==='=='?a===b:op==='in'?b.includes(a):(a===null||typeof a!==typeof b)?false:op==='>='?a>=b:op==='<='?a<=b:op==='>'?a>b:op==='<'?a<b:true;
+  const one=p=>data[p]?{...clone(data[p]),id:p.split('/').pop()}:null;
+  const rows=(col,where=[],o={})=>{let out=[];for(const[p,v]of Object.entries(data)){const i=p.lastIndexOf('/');if(p.slice(0,i)!==col)continue;
+      if(where.every(w=>v[w[0]]!==undefined&&cmp(v[w[0]],w[1],w[2])))out.push({...clone(v),id:p.slice(i+1)})}
+    if(o.orderBy){const[f,dir]=o.orderBy;out.sort((a,b)=>(a[f]<b[f]?-1:a[f]>b[f]?1:0)*(dir==='desc'?-1:1))}
+    return o.limit?out.slice(0,o.limit):out};
+  const upd=(p,d)=>{if(!data[p])throw Object.assign(new Error('No document to update: '+p),{code:'not-found'});
+    for(const[k,v]of Object.entries(d)){if(v&&typeof v==='object'&&'__inc'in v)data[p][k]=(data[p][k]||0)+v.__inc;else data[p][k]=clone(v)}};
+  return {
+    listen(col,where,cb,_e,o={}){const run=()=>cb(rows(col,where,o),{fromCache:false});subs.add(run);setTimeout(run,0);return()=>subs.delete(run)},
+    listenDoc(path,cb){const run=()=>cb(one(path));subs.add(run);setTimeout(run,0);return()=>subs.delete(run)},
+    async get(p){return one(p)}, async getServer(p){return one(p)},
+    async query(col,where,o){return rows(col,where,o)},
+    async set(p,d){data[p]=clone(d);save();notify()},
+    async update(p,d){upd(p,d);save();notify()},
+    async del(p){delete data[p];save();notify()},
+    newId(){return Math.random().toString(36).slice(2,10)+Date.now().toString(36)},
+    inc(n){return{__inc:n}},
+    async tx(fn){const backup=clone(data),ops=[];
+      try{const r=await fn({get:async p=>one(p),set:(p,d)=>ops.push(['s',p,d]),update:(p,d)=>ops.push(['u',p,d]),del:p=>ops.push(['d',p])});
+        for(const[t,p,d]of ops){if(t==='s')data[p]=clone(d);else if(t==='u')upd(p,d);else delete data[p]}
+        save();notify();return r}catch(e){data=backup;throw e}}
+  };
+}
+let Store;
+
+/* ================= Passwords (salted PBKDF2-SHA256; the password itself is never stored) ================= */
+const ITER=210000, enc=new TextEncoder();
+const b64=buf=>{let s='';const a=new Uint8Array(buf);for(let i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s)};
+const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function pbkdf2(pw,salt,iter){const k=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveBits']);
+  return b64(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:unb64(salt),iterations:iter},k,256))}
+async function makeHash(pw){const salt=b64(crypto.getRandomValues(new Uint8Array(16)));return{salt,iter:ITER,hash:await pbkdf2(pw,salt,ITER)}}
+const ctEq=(a,b)=>{if(!a||!b||a.length!==b.length)return false;let r=0;for(let i=0;i<a.length;i++)r|=a.charCodeAt(i)^b.charCodeAt(i);return r===0};
+const userId=u=>String(u||'').trim().toLowerCase().replace(/[^a-z0-9_\-.@+]/g,'_');
+function tempPassword(){const A='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';const r=crypto.getRandomValues(new Uint8Array(10));return Array.from(r,x=>A[x%A.length]).join('')}
+const SESSION_KEY='ct-session',LOCK_KEY='ct-lock',IDLE_MS=30*60*1000,MAX_TRIES=5,LOCK_MS=5*60*1000;
+const sessGet=()=>{try{const v=JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');return v&&v.exp>Date.now()?v:null}catch(e){return null}};
+const sessSet=(u,hs)=>{try{sessionStorage.setItem(SESSION_KEY,JSON.stringify({u,hs,exp:Date.now()+IDLE_MS}))}catch(e){}};
+const sessClear=()=>{try{sessionStorage.removeItem(SESSION_KEY)}catch(e){}};
+const lockGet=()=>{try{return JSON.parse(localStorage.getItem(LOCK_KEY)||'{}')||{}}catch(e){return{}}};
+const lockSet=v=>{try{localStorage.setItem(LOCK_KEY,JSON.stringify(v))}catch(e){}};
+const hashSig=u=>String(u&&u.hash||'').slice(0,16);
+
+/* ================= State ================= */
+const S={
+  phase:'boot', user:null, banks:[], open:[], users:[], audit:[], settings:{org:'TS Laundry'},
+  online:true, loaded:{banks:false,open:false},
+  route:'dash', sub:{}, ledgerRows:null, regRows:null, dlg:null,
+  ui:{bank:'',q:'',sel:new Set(),drafts:{},bulkDate:today(),bulkRef:'',
+      lBank:'',lFrom:monthStart(),lTo:today(),
+      rFrom:monthStart(),rTo:today(),rKind:'',rBank:'',rStatus:'',rQ:'', aQ:'', showInactive:false}
+};
+const ROLES={ADMIN:'Administrator',ENCODER:'Encoder',VIEWER:'Viewer'};
+const isAdmin=()=>S.user&&S.user.role==='ADMIN';
+const canEdit=()=>S.user&&(S.user.role==='ADMIN'||S.user.role==='ENCODER');
+const canSee=b=>isAdmin()||!S.user||!Array.isArray(S.user.banks)||S.user.banks.includes(b);
+const bankById=id=>S.banks.find(b=>b.id===id);
+const bankName=id=>{const b=bankById(id);return b?b.name:'(removed account)'};
+const visBanks=(all)=>S.banks.filter(b=>canSee(b.id)&&(all||b.active!==false));
+const KIND={cheque:'Cheque',deposit:'Collection',debit:'Bank debit',credit:'Bank credit'};
+
+/* ================= Balance engine =================
+   Every entry has an "effect" on its bank account's running totals (in centavos):
+   bal = cash in bank (opening + deposited collections + credits − released cheques − debits)
+   unrel/unrel_n = unreleased cheques, undep/undep_n = collections not yet deposited.
+   Saving an entry applies (new effect − old effect) to the bank document inside one Firestore
+   transaction, so the dashboard totals always match the entries, for every user, in real time. */
+function effect(t){
+  if(!t||t.status==='void')return null;
+  const a=t.amt||0;
+  if(t.kind==='cheque')return t.status==='released'?{bank:t.bank,bal:-a}:{bank:t.bank,unrel:a,unrel_n:1};
+  if(t.kind==='deposit')return t.status==='deposited'?{bank:t.bank,bal:a}:{bank:t.bank,undep:a,undep_n:1};
+  if(t.kind==='debit')return{bank:t.bank,bal:-a};
+  if(t.kind==='credit')return{bank:t.bank,bal:a};
+  return null;
+}
+function addEff(acc,e,sign){if(!e)return;const d=acc[e.bank]||(acc[e.bank]={});for(const k of['bal','unrel','unrel_n','undep','undep_n'])if(e[k])d[k]=(d[k]||0)+sign*e[k]}
+const bankSign=t=>(t.kind==='deposit'||t.kind==='credit')?t.amt:-t.amt;
+function statusOf(kind,eff){return kind==='cheque'?(eff?'released':'unreleased'):kind==='deposit'?(eff?'deposited':'undeposited'):'posted'}
+
+/* changes: [{id, next (full doc or null to delete), rev (expected revision, omit for new)}] */
+async function commit(changes,audit){
+  await Store.tx(async t=>{
+    const prevs=[];
+    for(const c of changes){
+      const p=await t.get(C.txns+'/'+c.id);
+      if(c.isNew&&p)throw new Error('Duplicate entry id, please try again.');
+      if(!c.isNew){
+        if(!p)throw new Error('This entry was deleted by someone else.');
+        if(c.rev!=null&&(p.rev||0)!==c.rev)throw new Error('Someone else changed this entry a moment ago. Close it and open it again.');
+      }
+      prevs.push(p);
+    }
+    const delta={};
+    changes.forEach((c,i)=>{addEff(delta,effect(prevs[i]),-1);addEff(delta,effect(c.next),1)});
+    for(const b of Object.keys(delta)){if(!(await t.get(C.banks+'/'+b)))throw new Error('Bank account not found.')}
+    changes.forEach((c,i)=>{const path=C.txns+'/'+c.id;if(c.next)t.set(path,{...noId(c.next),rev:((prevs[i]&&prevs[i].rev)||0)+1});else t.del(path)});
+    for(const[b,d]of Object.entries(delta)){const u={};for(const[k,v]of Object.entries(d))if(v)u[k]=Store.inc(v);if(Object.keys(u).length)t.update(C.banks+'/'+b,u)}
+    if(audit)t.set(C.audit+'/'+Store.newId(C.audit),{at:nowISO(),by:S.user.id,by_name:S.user.name,ref:changes[0]&&changes[0].id||'',...audit});
+  });
+}
+function logAudit(action,summary,ref){if(!S.user)return;Store.set(C.audit+'/'+Store.newId(C.audit),{at:nowISO(),by:S.user.id,by_name:S.user.name,action,summary,ref:ref||''}).catch(()=>{})}
+const stamp=()=>({updated_at:nowISO(),updated_by:S.user.name});
+
+/* ================= Sign-in ================= */
+async function adminExists(){const rows=await Store.query(C.users,[['role','==','ADMIN']]);return rows.some(u=>u.hash&&u.salt&&u.active!==false)}
+async function signIn(username,pw){
+  const lk=lockGet();
+  if(lk.until&&lk.until>Date.now())throw new Error(`Too many attempts. Try again in ${Math.ceil((lk.until-Date.now())/60000)} minute(s).`);
+  const id=userId(username);let u=null;
+  if(id){try{u=await Store.getServer(C.users+'/'+id)}catch(e){if(String(e.code||'').includes('permission'))throw new Error(errMsg(e));try{u=await Store.get(C.users+'/'+id)}catch(e2){throw new Error(errMsg(e))}}}
+  let ok=false;
+  if(u&&u.hash&&u.salt)ok=ctEq(await pbkdf2(pw,u.salt,u.iter||ITER),u.hash);else await pbkdf2(pw,'AAAAAAAAAAAAAAAAAAAAAA==',20000);
+  if(!ok||u.active===false){
+    if(ok&&u.active===false)throw new Error('This user is deactivated. Ask the administrator.');
+    const tries=(lk.tries||0)+1;
+    if(tries>=MAX_TRIES){lockSet({tries:0,until:Date.now()+LOCK_MS});throw new Error('Too many attempts. Sign-in is paused for 5 minutes.')}
+    lockSet({tries});throw new Error(`Incorrect username or password. ${MAX_TRIES-tries} attempt(s) left.`);
+  }
+  lockSet({});
+  S.user={...u,id};sessSet(id,hashSig(u));
+  Store.update(C.users+'/'+id,{last_login:nowISO()}).catch(()=>{});
+  logAudit('SIGN_IN','Signed in',id);
+  afterSignIn();
+}
+function afterSignIn(){if(S.user.must_change){S.phase='mustchange';render();return}S.phase='app';startData();route();}
+async function resume(){
+  const s=sessGet();if(!s)return false;
+  try{const u=await Store.get(C.users+'/'+s.u);if(!u||u.active===false||hashSig(u)!==s.hs){sessClear();return false}S.user={...u,id:s.u};afterSignIn();return true}catch(e){return false}
+}
+function signOut(msg){
+  if(S.user&&!msg)logAudit('SIGN_OUT','Signed out',S.user.id);
+  stopData();sessClear();S.user=null;S.phase='login';closeDlg();render();if(msg)toast(msg);
+}
+let lastActive=Date.now();
+['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>{lastActive=Date.now();if(S.user)sessSet(S.user.id,hashSig(S.user))},{passive:true}));
+setInterval(()=>{if(S.user&&Date.now()-lastActive>IDLE_MS)signOut('Signed out after 30 minutes of inactivity.')},30000);
+
+/* ================= Live data ================= */
+function onErr(e){console.error(e);toast(errMsg(e),true)}
+function startData(){
+  stopData();const sub=S.sub;
+  sub.banks=Store.listen(C.banks,[],(rows,meta)=>{S.banks=rows.sort((a,b)=>(a.sort||0)-(b.sort||0)||String(a.name).localeCompare(b.name));S.online=!(meta&&meta.fromCache);S.loaded.banks=true;schedule()},onErr,{meta:true});
+  sub.open=Store.listen(C.txns,[['status','in',['unreleased','undeposited']]],rows=>{S.open=rows;S.loaded.open=true;schedule()},onErr,{limit:5000});
+  sub.settings=Store.listenDoc(C.settings+'/main',d=>{S.settings={org:'TS Laundry',...(d||{})};schedule()},()=>{});
+  sub.me=Store.listenDoc(C.users+'/'+S.user.id,d=>{
+    if(!S.user)return;
+    if(!d||d.active===false)return signOut('Your access was removed or deactivated.');
+    if(hashSig(d)!==hashSig(S.user))return signOut('Your password was changed. Please sign in again.');
+    const roleChanged=d.role!==S.user.role;S.user={...d,id:S.user.id};if(roleChanged)startAdmin();schedule();
+  },()=>{});
+  startAdmin();
+}
+function startAdmin(){
+  if(S.sub.users){S.sub.users();S.sub.users=null}
+  if(isAdmin())S.sub.users=Store.listen(C.users,[],rows=>{S.users=rows.sort((a,b)=>String(a.name||a.username||'').localeCompare(String(b.name||b.username||'')));schedule()},onErr);
+}
+function stopData(){for(const k of Object.keys(S.sub)){try{typeof S.sub[k]==='function'&&S.sub[k]()}catch(e){}}S.sub={};S.ledgerRows=null;S.regRows=null;S.banks=[];S.open=[];S.users=[];S.audit=[];S.loaded={banks:false,open:false}}
+function ensureLedger(){const key=S.ui.lFrom;if(S.sub.ledgerKey===key)return;S.sub.ledger&&S.sub.ledger();S.sub.ledgerKey=key;S.ledgerRows=null;
+  S.sub.ledger=Store.listen(C.txns,[['eff','>=',key]],rows=>{S.ledgerRows=rows;schedule()},onErr,{limit:10000})}
+function ensureRegister(){const key=S.ui.rFrom+'|'+S.ui.rTo;if(S.sub.regKey===key)return;S.sub.reg&&S.sub.reg();S.sub.regKey=key;S.regRows=null;
+  S.sub.reg=Store.listen(C.txns,[['date','>=',S.ui.rFrom],['date','<=',S.ui.rTo]],rows=>{S.regRows=rows;schedule()},onErr,{limit:5000})}
+function ensureAudit(){if(S.sub.audit)return;S.sub.audit=Store.listen(C.audit,[],rows=>{S.audit=rows;schedule()},onErr,{orderBy:['at','desc'],limit:300})}
+
+/* ================= Rendering ================= */
+let rq=0;function schedule(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;render()})}
+const NAV=[['dash','Dashboard'],['unrel','Unreleased cheques'],['undep','Undeposited'],['ledger','Bank ledger'],['register','All entries'],['banks','Bank accounts',1],['users','Users',1],['activity','Activity',1]];
+function route(){const r=(location.hash||'').slice(1);S.route=NAV.some(n=>n[0]===r&&(!n[2]||isAdmin()))?r:'dash';S.ui.sel=new Set();render()}
+window.addEventListener('hashchange',()=>{if(S.phase==='app')route()});
+
+function render(){
+  const app=$('#app');
+  const ae=document.activeElement,fid=ae&&ae.id&&app.contains(ae)?ae.id:null;let ss=null,se=null;try{ss=ae.selectionStart;se=ae.selectionEnd}catch(e){}
+  let html=DEMO?'<div class="demo">DEMO MODE — data is saved only in this browser, not in Firebase</div>':'';
+  if(S.phase==='boot')html+='<div class="empty">Loading…</div>';
+  else if(S.phase==='login'||S.phase==='setup')html+=vLogin();
+  else if(S.phase==='mustchange')html+=vMustChange();
+  else html+=vHeader()+'<main>'+vMain()+'</main>';
+  app.innerHTML=html;
+  if(fid){const el=document.getElementById(fid);if(el){el.focus();try{if(ss!=null)el.setSelectionRange(ss,se)}catch(e){}}}
+}
+function vHeader(){
+  const nU=S.open.filter(t=>t.status==='unreleased'&&canSee(t.bank)).length,nD=S.open.filter(t=>t.status==='undeposited'&&canSee(t.bank)).length;
+  const badge={unrel:nU,undep:nD};
+  return `<header class="top"><div class="topbar">
+    <div class="brand">${h(S.settings.org||'')} <small>Cash Tracker</small></div><span class="spacer"></span>
+    <span class="live" title="${S.online?'Connected — changes from other users appear instantly':'Offline — showing the last saved data'}"><span class="dot ${S.online?'':'off'}"></span>${S.online?'Live':'Offline'}</span>
+    ${canEdit()?'<button class="btn primary" data-act="new">+ New entry</button>':''}
+    <div class="menu" id="umenu"><button class="btn" data-act="menu" aria-haspopup="true">${h((S.user.name||S.user.username||'').split(' ')[0])} ▾</button>
+      <div class="pop"><div class="who"><b>${h(S.user.name||'')}</b><br>${h(S.user.username||S.user.id)} · ${ROLES[S.user.role]||S.user.role}</div>
+      <button data-act="myPw">Change my password</button><button data-act="signOut">Sign out</button></div></div>
+  </div><nav class="tabs">${NAV.filter(n=>!n[2]||isAdmin()).map(([k,l])=>`<a href="#${k}" class="${S.route===k?'on':''}">${l}${badge[k]?`<span class="badge">${badge[k]}</span>`:''}</a>`).join('')}</nav></header>`;
+}
+function vMain(){
+  if(!S.loaded.banks)return '<div class="empty">Loading live data…</div>';
+  switch(S.route){
+    case 'unrel':return vOpen('cheque');
+    case 'undep':return vOpen('deposit');
+    case 'ledger':return vLedger();
+    case 'register':return vRegister();
+    case 'banks':return vBanks();
+    case 'users':return vUsers();
+    case 'activity':return vActivity();
+    default:return vDash();
+  }
+}
+function bankOptions(sel,{all=false,blank='',includeInactive=false}={}){
+  return (blank?`<option value="">${h(blank)}</option>`:'')+visBanks(includeInactive).map(b=>`<option value="${b.id}" ${b.id===sel?'selected':''}>${h(b.name)}${b.active===false?' (inactive)':''}</option>`).join('');
+}
+
+/* ---------- Login / first-run setup ---------- */
+function vLogin(){
+  const setup=S.phase==='setup';
+  return `<div class="login"><div class="panel">
+    <h1>${setup?'Set up the Cash Tracker':'Cash Tracker'}</h1>
+    <p class="muted" style="margin-top:0">${setup?'No administrator exists yet. Create the first administrator account. You can add other users after signing in.':'Sign in to continue.'}</p>
+    ${S.loginNote?`<div class="note bad">${h(S.loginNote)}</div>`:''}
+    <form id="${setup?'fSetup':'fLogin'}" class="stack" autocomplete="on">
+      ${setup?`<label class="f">Full name<input type="text" name="name" required value="Administrator"></label>`:''}
+      <label class="f">Username or email<input type="text" name="username" required autocomplete="username" value="${setup?'administrator@cash.prime':h(S.loginUser||'')}" ${setup?'':'autofocus'}></label>
+      <label class="f">Password<input type="password" name="pw" required autocomplete="${setup?'new-password':'current-password'}" minlength="${setup?8:1}"></label>
+      ${setup?'<label class="f">Confirm password<input type="password" name="pw2" required autocomplete="new-password" minlength="8"></label>':''}
+      <button class="btn primary" type="submit">${setup?'Create administrator':'Sign in'}</button>
+    </form>
+    ${setup?'':'<p class="muted small" style="margin-bottom:0">Forgot your password? Ask the administrator to reset it in Users.</p>'}
+  </div></div>`;
+}
+function vMustChange(){
+  return `<div class="login"><div class="panel"><h1>Set your own password</h1>
+  <p class="muted" style="margin-top:0">You signed in with a temporary password. Choose a new one (at least 8 characters) to continue.</p>
+  <form id="fMust" class="stack"><label class="f">New password<input type="password" name="pw" minlength="8" required autocomplete="new-password" autofocus></label>
+  <label class="f">Confirm new password<input type="password" name="pw2" minlength="8" required autocomplete="new-password"></label>
+  <button class="btn primary" type="submit">Save and continue</button><button class="btn" type="button" data-act="signOut">Sign out</button></form></div></div>`;
+}
+
+/* ---------- Dashboard ---------- */
+function vDash(){
+  const banks=visBanks();
+  if(!banks.length)return `<div class="panel empty"><h2>No bank accounts yet</h2><p>${isAdmin()?'Add your bank accounts with their opening balances to start.':'The administrator has not added a bank account you can see.'}</p>${isAdmin()?'<button class="btn primary" data-act="bankNew">Add bank account</button>':''}</div>`;
+  const T={bal:0,unrel:0,unrel_n:0,undep:0,undep_n:0};for(const b of banks)for(const k in T)T[k]+=b[k]||0;
+  const proj=T.bal-T.unrel+T.undep;
+  const openU=S.open.filter(t=>t.status==='unreleased'&&canSee(t.bank)).sort((a,b)=>a.date<b.date?-1:1).slice(0,6);
+  const openD=S.open.filter(t=>t.status==='undeposited'&&canSee(t.bank)).sort((a,b)=>a.date<b.date?-1:1).slice(0,6);
+  const mini=(rows,party)=>rows.length?`<table><tbody>${rows.map(t=>`<tr class="click" data-act="edit" data-id="${t.id}"><td class="small">${fd(t.date)}<br><span class="muted">${h(bankName(t.bank))}</span></td><td>${h(t.kind==='cheque'?('#'+(t.no||'')+' · '):'')}${h(t.payee||t.note||'')}</td><td class="n">${peso(t.amt)}<br><span class="small muted">${daysBetween(t.date,today())} days</span></td></tr>`).join('')}</tbody></table>`:'<div class="empty small">Nothing pending.</div>';
+  return `<div class="kpis">
+    <div class="kpi"><div class="l">Cash in bank · all accounts</div><div class="v">${peso(T.bal)}</div><div class="s">${banks.length} account(s)</div></div>
+    <div class="kpi"><div class="l">Unreleased cheques</div><div class="v">${peso(T.unrel)}</div><div class="s">${T.unrel_n} cheque(s) on hand</div></div>
+    <div class="kpi"><div class="l">Undeposited collections</div><div class="v">${peso(T.undep)}</div><div class="s">${T.undep_n} item(s) to deposit</div></div>
+    <div class="kpi"><div class="l">Projected balance</div><div class="v ${proj<0?'neg':''}">${peso(proj)}</div><div class="s">bank − unreleased + undeposited</div></div>
+  </div>
+  <div class="cards">${banks.map(b=>{const p=(b.bal||0)-(b.unrel||0)+(b.undep||0);return `<div class="card">
+    <div class="row"><div><b>${h(b.name)}</b><div class="small muted">${h([b.bank,b.acct_no].filter(Boolean).join(' · '))}</div></div><span class="spacer"></span><a class="small" href="#ledger" data-act="toLedger" data-id="${b.id}">Ledger →</a></div>
+    <div class="small muted" style="margin-top:8px">Cash in bank</div><div class="big ${(b.bal||0)<0?'neg':''}">${peso(b.bal)}</div>
+    <div class="kv"><a href="#unrel" data-act="toOpen" data-r="unrel" data-id="${b.id}">Unreleased cheques (${b.unrel_n||0})</a><span class="num">${peso(b.unrel)}</span></div>
+    <div class="kv"><a href="#undep" data-act="toOpen" data-r="undep" data-id="${b.id}">Undeposited (${b.undep_n||0})</a><span class="num">${peso(b.undep)}</span></div>
+    <div class="kv"><b>Projected</b><b class="num ${p<0?'neg':''}">${peso(p)}</b></div></div>`}).join('')}</div>
+  <div class="two">
+    <div class="panel"><div class="row" style="margin-bottom:8px"><h2 style="margin:0">Oldest unreleased cheques</h2><span class="spacer"></span><a href="#unrel">See all</a></div>${mini(openU)}</div>
+    <div class="panel"><div class="row" style="margin-bottom:8px"><h2 style="margin:0">Oldest undeposited collections</h2><span class="spacer"></span><a href="#undep">See all</a></div>${mini(openD)}</div>
+  </div>`;
+}
+
+/* ---------- Unreleased cheques / Undeposited collections ---------- */
+function openCfg(kind){return kind==='cheque'
+  ?{status:'unreleased',title:'Unreleased cheques',date:'Cheque date',party:'Payee',when:'Release date',act:'Release',done:'released'}
+  :{status:'undeposited',title:'Undeposited collections',date:'Date received',party:'Received from',when:'Deposit date',act:'Deposit',done:'deposited'}}
+function openRows(kind){
+  const cfg=openCfg(kind),q=S.ui.q.trim().toLowerCase();
+  return S.open.filter(t=>t.status===cfg.status&&canSee(t.bank)&&(!S.ui.bank||t.bank===S.ui.bank)&&
+    (!q||[t.no,t.payee,t.ref,t.note,peso(t.amt),money(t.amt)].join(' ').toLowerCase().includes(q)))
+    .sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:String(a.no||'').localeCompare(String(b.no||''),undefined,{numeric:true}));
+}
+function vOpen(kind){
+  const cfg=openCfg(kind),rows=openRows(kind),ed=canEdit();
+  for(const id of [...S.ui.sel])if(!rows.some(r=>r.id===id))S.ui.sel.delete(id);
+  const sel=rows.filter(r=>S.ui.sel.has(r.id)),selTot=sel.reduce((s,r)=>s+r.amt,0),tot=rows.reduce((s,r)=>s+r.amt,0);
+  return `<div class="panel">
+  <div class="row" style="margin-bottom:12px"><h1 style="margin:0">${cfg.title}</h1><span class="spacer"></span>
+    <select id="fBank" data-ui="bank" aria-label="Bank account">${bankOptions(S.ui.bank,{blank:'All accounts'})}</select>
+    <input type="search" id="fQ" data-ui="q" placeholder="Search no., name, amount" value="${h(S.ui.q)}">
+    <button class="btn noprint" data-act="csvOpen" data-kind="${kind}">Export CSV</button></div>
+  <p class="muted small" style="margin-top:0">${kind==='cheque'
+    ?'Cheques that were written but not yet handed to the payee. Enter the release date when the cheque is released — it then leaves this list and is deducted from cash in bank.'
+    :'Collections received but not yet deposited. Enter the deposit date when it is deposited — it then leaves this list and is added to cash in bank.'}</p>
+  ${ed&&rows.length?`<div class="bulk"><b style="align-self:center">${sel.length?`${sel.length} selected · ${peso(selTot)}`:'Tick rows to '+cfg.act.toLowerCase()+' several at once'}</b><span class="spacer"></span>
+    <label class="f">${cfg.when}<input type="date" id="bulkDate" data-ui="bulkDate" value="${h(S.ui.bulkDate)}"></label>
+    ${kind==='deposit'?`<label class="f">Deposit slip no. (optional)<input type="text" id="bulkRef" data-ui="bulkRef" value="${h(S.ui.bulkRef)}" style="width:150px"></label>`:''}
+    <button class="btn primary" data-act="bulkDone" data-kind="${kind}" ${sel.length?'':'disabled'}>${cfg.act} selected</button></div>`:''}
+  ${rows.length?`<div class="tablewrap"><table><thead><tr>
+    ${ed?`<th><input type="checkbox" data-act="selAll" aria-label="Select all" ${sel.length&&sel.length===rows.length?'checked':''}></th>`:''}
+    <th>${cfg.date}</th>${kind==='cheque'?'<th>Cheque no.</th>':'<th>OR / ref.</th>'}<th>Account</th><th>${cfg.party}</th><th>Particulars</th><th class="n">Amount</th><th class="n">Age</th>
+    ${ed?`<th>${cfg.when}</th><th></th>`:''}</tr></thead><tbody>
+    ${rows.map(t=>{const age=daysBetween(t.date,today());const stale=kind==='cheque'&&age>180;
+      return `<tr class="${S.ui.sel.has(t.id)?'sel':''}">
+      ${ed?`<td><input type="checkbox" data-act="sel" data-id="${t.id}" ${S.ui.sel.has(t.id)?'checked':''} aria-label="Select"></td>`:''}
+      <td class="num">${fd(t.date)}</td><td class="num"><a href="#" data-act="edit" data-id="${t.id}">${h(kind==='cheque'?t.no:(t.ref||'—'))}</a></td>
+      <td>${h(bankName(t.bank))}</td><td>${h(t.payee)}</td><td class="small">${h(t.note)}</td><td class="n b">${peso(t.amt)}</td>
+      <td class="n">${age<0?'<span class="pill p-info">post-dated</span>':stale?`<span class="pill p-bad">${age} d · stale</span>`:age>30?`<span class="pill p-warn">${age} d</span>`:age+' d'}</td>
+      ${ed?`<td><input type="date" id="d_${t.id}" data-draft="${t.id}" value="${h(S.ui.drafts[t.id]||today())}" aria-label="${cfg.when}"></td>
+      <td><button class="btn sm primary" data-act="oneDone" data-id="${t.id}" data-kind="${kind}">${cfg.act}</button></td>`:''}</tr>`}).join('')}
+    </tbody><tfoot><tr>${ed?'<td></td>':''}<td colspan="5">${rows.length} item(s)</td><td class="n">${peso(tot)}</td><td></td>${ed?'<td></td><td></td>':''}</tr></tfoot></table></div>`
+  :`<div class="empty">${S.loaded.open?'Nothing pending.':'Loading…'}</div>`}
+  </div>`;
+}
+async function markDone(kind,ids,date,dref){
+  const cfg=openCfg(kind);
+  if(!isISO(date))return toast('Enter a valid '+cfg.when.toLowerCase()+'.',true);
+  const items=ids.map(id=>S.open.find(t=>t.id===id)).filter(Boolean);
+  if(!items.length)return;
+  for(const t of items){const b=bankById(t.bank);if(b&&b.open_date&&date<b.open_date)return toast(`${cfg.when} ${fd(date)} is before the opening date of ${b.name} (${fd(b.open_date)}).`,true)}
+  if(date>today()&&!confirm(`${cfg.when} ${fd(date)} is in the future. Continue?`))return;
+  const chunks=[];for(let i=0;i<items.length;i+=150)chunks.push(items.slice(i,i+150));
+  try{
+    for(const ch of chunks){
+      await commit(ch.map(t=>({id:t.id,rev:t.rev||0,next:{...noId(t),eff:date,status:cfg.done,...(kind==='deposit'&&dref?{dref}:{}),...stamp()}})),
+        {action:kind==='cheque'?'RELEASE':'DEPOSIT',summary:`${cfg.act==='Release'?'Released':'Deposited'} ${ch.length} item(s) totalling ${peso(ch.reduce((s,t)=>s+t.amt,0))} on ${fd(date)}`+(ch.length===1?` — ${ch[0].kind==='cheque'?'cheque #'+ch[0].no:''} ${ch[0].payee||''}`:'')});
+    }
+    ids.forEach(id=>{S.ui.sel.delete(id);delete S.ui.drafts[id]});
+    toast(`${items.length} item(s) ${cfg.done}.`);
+  }catch(e){toast(errMsg(e),true)}
+}
+
+/* ---------- Bank ledger ---------- */
+function vLedger(){
+  const banks=visBanks(true);
+  if(!banks.length)return '<div class="panel empty">No bank accounts yet.</div>';
+  if(!S.ui.lBank||!banks.some(b=>b.id===S.ui.lBank))S.ui.lBank=banks[0].id;
+  ensureLedger();
+  const b=bankById(S.ui.lBank),from=S.ui.lFrom,to=S.ui.lTo;
+  let body='<div class="empty">Loading…</div>',sumIn=0,sumOut=0,start=0,end=0,list=[];
+  if(S.ledgerRows){
+    const all=S.ledgerRows.filter(t=>t.bank===b.id&&t.status!=='void'&&t.eff&&t.eff>=from);
+    const after=all.reduce((s,t)=>s+bankSign(t),0);
+    const openIn=b.open_date&&b.open_date>=from;
+    start=(b.bal||0)-after-(openIn?(b.open_amt||0):0);
+    list=all.filter(t=>t.eff<=to).sort((x,y)=>x.eff<y.eff?-1:x.eff>y.eff?1:String(x.created_at||'').localeCompare(String(y.created_at||'')));
+    if(openIn&&b.open_date<=to)list.unshift({opening:true,eff:b.open_date,amt:b.open_amt||0});
+    let run=start;
+    const tr=list.map(t=>{const v=t.opening?t.amt:bankSign(t);run+=v;if(v>=0)sumIn+=v;else sumOut-=v;t._run=run;
+      if(t.opening)return `<tr><td class="num">${fd(t.eff)}</td><td><span class="pill p-mute">Opening</span></td><td></td><td>Opening balance</td><td class="n pos">${v>=0?peso(v):''}</td><td class="n">${v<0?peso(-v):''}</td><td class="n b">${peso(run)}</td></tr>`;
+      return `<tr class="click" data-act="edit" data-id="${t.id}"><td class="num">${fd(t.eff)}</td><td>${typePill(t)}</td><td class="num">${h(t.kind==='cheque'?'#'+t.no:(t.ref||t.dref||''))}</td>
+      <td>${h(t.payee||'')}${t.note?`<div class="small muted">${h(t.note)}</div>`:''}</td><td class="n pos">${v>0?peso(v):''}</td><td class="n neg">${v<0?peso(-v):''}</td><td class="n b ${run<0?'neg':''}">${peso(run)}</td></tr>`}).join('');
+    end=run;
+    body=`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Type</th><th>No. / ref.</th><th>Payee / particulars</th><th class="n">Deposits &amp; credits</th><th class="n">Cheques &amp; debits</th><th class="n">Balance</th></tr></thead>
+    <tbody><tr><td class="num">${fd(from)}</td><td></td><td></td><td class="b">Beginning balance</td><td></td><td></td><td class="n b">${peso(start)}</td></tr>${tr}</tbody>
+    <tfoot><tr><td colspan="4">Ending balance ${fd(to)}</td><td class="n">${peso(sumIn)}</td><td class="n">${peso(sumOut)}</td><td class="n">${peso(end)}</td></tr></tfoot></table></div>
+    ${S.ledgerRows.length>=10000?'<div class="note">Very long date range — choose a later "From" date for exact figures.</div>':''}`;
+  }
+  return `<div class="panel">
+  <div class="row" style="margin-bottom:12px"><h1 style="margin:0">Bank ledger</h1><span class="spacer"></span>
+    <select id="lBank" data-ui="lBank" aria-label="Bank account">${bankOptions(S.ui.lBank,{includeInactive:true})}</select>
+    <label class="chk">From <input type="date" id="lFrom" data-ui="lFrom" value="${from}"></label>
+    <label class="chk">To <input type="date" id="lTo" data-ui="lTo" value="${to}"></label>
+    <button class="btn noprint" data-act="csvLedger">Export CSV</button><button class="btn noprint" data-act="print">Print</button></div>
+  <p class="muted small" style="margin-top:0">${h(b.name)} · ${h([b.bank,b.acct_no].filter(Boolean).join(' · '))} — shows what has hit the bank: released cheques, deposited collections, bank debits and credits, by release / deposit date. Unreleased and undeposited items are not included until they are dated.</p>
+  ${body}</div>`;
+}
+function typePill(t){
+  if(t.status==='void')return '<span class="pill p-mute">Void</span>';
+  if(t.xfer)return `<span class="pill p-info">Transfer ${t.kind==='debit'?'out':'in'}</span>`;
+  const m={cheque:['Cheque','p-bad'],deposit:['Deposit','p-ok'],debit:['Debit','p-warn'],credit:['Credit','p-ok']}[t.kind]||[t.kind,'p-mute'];
+  return `<span class="pill ${m[1]}">${m[0]}</span>`;
+}
+function statusPill(t){
+  switch(t.status){
+    case 'unreleased':return '<span class="pill p-warn">Unreleased</span>';
+    case 'released':return `<span class="pill p-ok">Released ${fd(t.eff)}</span>`;
+    case 'undeposited':return '<span class="pill p-warn">Undeposited</span>';
+    case 'deposited':return `<span class="pill p-ok">Deposited ${fd(t.eff)}</span>`;
+    case 'void':return '<span class="pill p-mute">Void</span>';
+    default:return '<span class="pill p-mute">Posted</span>';
+  }
+}
+
+/* ---------- All entries ---------- */
+function regFiltered(){
+  const q=S.ui.rQ.trim().toLowerCase();
+  return (S.regRows||[]).filter(t=>canSee(t.bank)&&(!S.ui.rBank||t.bank===S.ui.rBank)&&
+    (!S.ui.rKind||(S.ui.rKind==='transfer'?!!t.xfer:t.kind===S.ui.rKind&&!t.xfer))&&
+    (!S.ui.rStatus||t.status===S.ui.rStatus)&&
+    (!q||[t.no,t.payee,t.ref,t.note,t.dref,money(t.amt),t.created_by,t.updated_by].join(' ').toLowerCase().includes(q)))
+    .sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:String(b.created_at||'').localeCompare(String(a.created_at||'')));
+}
+function vRegister(){
+  ensureRegister();
+  const rows=regFiltered();
+  const sums={};for(const t of rows)if(t.status!=='void'){const k=t.xfer?'transfer':t.kind;sums[k]=(sums[k]||0)+t.amt}
+  return `<div class="panel">
+  <div class="row" style="margin-bottom:12px"><h1 style="margin:0">All entries</h1><span class="spacer"></span>
+    <label class="chk">From <input type="date" id="rFrom" data-ui="rFrom" value="${S.ui.rFrom}"></label>
+    <label class="chk">To <input type="date" id="rTo" data-ui="rTo" value="${S.ui.rTo}"></label>
+    <button class="btn noprint" data-act="csvReg">Export CSV</button></div>
+  <div class="row" style="margin-bottom:12px">
+    <select id="rKind" data-ui="rKind" aria-label="Type"><option value="">All types</option>${[['cheque','Cheques issued'],['deposit','Collections / deposits'],['debit','Bank debits'],['credit','Bank credits'],['transfer','Transfers']].map(([v,l])=>`<option value="${v}" ${S.ui.rKind===v?'selected':''}>${l}</option>`).join('')}</select>
+    <select id="rBank" data-ui="rBank" aria-label="Account">${bankOptions(S.ui.rBank,{blank:'All accounts',includeInactive:true})}</select>
+    <select id="rStatus" data-ui="rStatus" aria-label="Status"><option value="">Any status</option>${['unreleased','released','undeposited','deposited','posted','void'].map(v=>`<option value="${v}" ${S.ui.rStatus===v?'selected':''}>${v[0].toUpperCase()+v.slice(1)}</option>`).join('')}</select>
+    <input type="search" id="rQ" data-ui="rQ" placeholder="Search no., name, amount, user" value="${h(S.ui.rQ)}" style="flex:1;min-width:160px">
+  </div>
+  <p class="muted small" style="margin-top:0">Filtered by entry date (cheque date / date received). ${Object.entries(sums).map(([k,v])=>`${k==='transfer'?'Transfers':KIND[k]+'s'}: <b>${peso(v)}</b>`).join(' · ')}</p>
+  ${S.regRows==null?'<div class="empty">Loading…</div>':rows.length?`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Type</th><th>Account</th><th>No. / ref.</th><th>Payee / source</th><th class="n">Amount</th><th>Status</th><th class="noprint">By</th></tr></thead><tbody>
+  ${rows.map(t=>`<tr class="click" data-act="edit" data-id="${t.id}"><td class="num">${fd(t.date)}</td><td>${typePill(t)}</td><td>${h(bankName(t.bank))}${t.xbank?`<div class="small muted">${t.kind==='debit'?'to':'from'} ${h(bankName(t.xbank))}</div>`:''}</td>
+  <td class="num">${h(t.kind==='cheque'?'#'+t.no:(t.ref||''))}</td><td>${h(t.payee||'')}${t.note?`<div class="small muted">${h(t.note)}</div>`:''}</td>
+  <td class="n b" style="${t.status==='void'?'text-decoration:line-through;opacity:.6':''}">${peso(t.amt)}</td><td>${statusPill(t)}</td><td class="small muted noprint">${h(t.updated_by||t.created_by||'')}</td></tr>`).join('')}
+  </tbody></table></div><p class="muted small">${rows.length} entr${rows.length===1?'y':'ies'}${S.regRows.length>=5000?' — limit reached, narrow the dates':''}</p>`:'<div class="empty">No entries in this period.</div>'}
+  </div>`;
+}
+
+/* ---------- Bank accounts (admin) ---------- */
+function vBanks(){
+  const list=S.banks.filter(b=>S.ui.showInactive||b.active!==false);
+  return `<div class="panel">
+  <div class="row" style="margin-bottom:12px"><h1 style="margin:0">Bank accounts</h1><span class="spacer"></span>
+    <label class="chk"><input type="checkbox" data-act="toggleInactive" ${S.ui.showInactive?'checked':''}> Show inactive</label>
+    <button class="btn primary" data-act="bankNew">+ Add bank account</button></div>
+  ${list.length?`<div class="tablewrap"><table><thead><tr><th>#</th><th>Account name</th><th>Bank · account no.</th><th class="n">Opening balance</th><th>As of</th><th class="n">Cash in bank</th><th>Status</th><th></th></tr></thead><tbody>
+  ${list.map(b=>`<tr><td>${b.sort||0}</td><td class="b">${h(b.name)}</td><td>${h([b.bank,b.acct_no].filter(Boolean).join(' · '))}</td><td class="n">${peso(b.open_amt)}</td><td class="num">${fd(b.open_date)}</td><td class="n b">${peso(b.bal)}</td>
+  <td>${b.active===false?'<span class="pill p-mute">Inactive</span>':'<span class="pill p-ok">Active</span>'}</td><td><button class="btn sm" data-act="bankEdit" data-id="${b.id}">Edit</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No bank accounts yet.</div>'}
+  </div>
+  <div class="two">
+  <div class="panel"><h2>Company name</h2><form id="fOrg" class="row"><input type="text" name="org" value="${h(S.settings.org||'')}" style="flex:1"><button class="btn" type="submit">Save</button></form></div>
+  <div class="panel"><h2>Check balances</h2><p class="muted small" style="margin-top:0">Re-adds every entry from scratch and compares with the totals shown on the dashboard. Use it if a total ever looks wrong. Best done when no one else is encoding.</p>
+  <button class="btn" data-act="recalc">Check and fix balances</button></div></div>`;
+}
+function dlgBank(b){
+  const n=!b;b=b||{active:true,sort:S.banks.length+1,open_date:today()};
+  openDlg(`<h2>${n?'Add bank account':'Edit bank account'}</h2><form id="fBankAcct" class="stack">
+  <div class="grid2">
+  <label class="f span2">Account name (as it should appear)<input type="text" name="name" required value="${h(b.name)}" placeholder="e.g. BDO Main – Current"></label>
+  <label class="f">Bank<input type="text" name="bank" value="${h(b.bank)}" placeholder="e.g. BDO"></label>
+  <label class="f">Account no.<input type="text" name="acct_no" value="${h(b.acct_no)}"></label>
+  <label class="f">Opening balance (₱)<input type="text" inputmode="decimal" name="open_amt" required value="${b.open_amt!=null?plain(b.open_amt):''}" placeholder="0.00"></label>
+  <label class="f">Balance as of (start of day)<input type="date" name="open_date" required value="${h(b.open_date)}"></label>
+  <label class="f">Display order<input type="number" name="sort" value="${b.sort||0}"></label>
+  <label class="chk" style="align-self:end"><input type="checkbox" name="active" ${b.active!==false?'checked':''}> Active</label>
+  </div>
+  <p class="muted small" style="margin:0">Use the bank balance at the start of the "as of" date, before any of the entries you will encode. Entries dated earlier than this date are not allowed.</p>
+  <div class="acts">${!n?'<button type="button" class="btn danger" data-act="bankDel" style="margin-right:auto">Delete</button>':''}<button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>`,{bank:b,isNew:n});
+}
+async function saveBank(f){
+  const d=S.dlg,name=f.name.trim(),amt=parseAmt(f.open_amt||'0'),neg=/^\s*-/.test(f.open_amt);
+  const open_amt=neg?-parseAmt(f.open_amt.replace('-','')):amt;
+  if(!name)return toast('Enter the account name.',true);
+  if(!Number.isFinite(open_amt))return toast('Enter a valid opening balance, e.g. 150000.00',true);
+  if(!isISO(f.open_date))return toast('Enter the "as of" date.',true);
+  const base={name,bank:f.bank.trim(),acct_no:f.acct_no.trim(),open_date:f.open_date,sort:parseInt(f.sort)||0,active:!!f.active,...stamp()};
+  try{
+    if(d.isNew){
+      const id=Store.newId(C.banks);
+      await Store.set(C.banks+'/'+id,{...base,open_amt,bal:open_amt,unrel:0,unrel_n:0,undep:0,undep_n:0,created_at:nowISO(),created_by:S.user.name});
+      logAudit('BANK_ADD',`Added bank account ${name} (opening ${peso(open_amt)} as of ${fd(f.open_date)})`,id);
+    }else{
+      const id=d.bank.id;let old;
+      await Store.tx(async t=>{old=await t.get(C.banks+'/'+id);if(!old)throw new Error('Bank account not found.');
+        const delta=open_amt-(old.open_amt||0);t.update(C.banks+'/'+id,{...base,open_amt,...(delta?{bal:Store.inc(delta)}:{})})});
+      const ch=[];if(old.open_amt!==open_amt)ch.push(`opening ${peso(old.open_amt)} → ${peso(open_amt)}`);if(old.open_date!==f.open_date)ch.push(`as of ${fd(old.open_date)} → ${fd(f.open_date)}`);if(old.name!==name)ch.push(`name ${old.name} → ${name}`);if((old.active!==false)!==!!f.active)ch.push(f.active?'activated':'deactivated');
+      logAudit('BANK_EDIT',`Edited bank account ${name}${ch.length?': '+ch.join(', '):''}`,id);
+    }
+    closeDlg();toast('Bank account saved.');
+  }catch(e){toast(errMsg(e),true)}
+}
+async function deleteBank(){
+  const b=S.dlg.bank;
+  try{
+    const any=await Store.query(C.txns,[['bank','==',b.id]],{limit:1});
+    if(any.length)return toast('This account has entries, so it cannot be deleted. Untick "Active" to hide it instead.',true);
+    if(!confirm(`Delete bank account ${b.name}? This cannot be undone.`))return;
+    await Store.del(C.banks+'/'+b.id);logAudit('BANK_DELETE',`Deleted bank account ${b.name}`,b.id);closeDlg();toast('Bank account deleted.');
+  }catch(e){toast(errMsg(e),true)}
+}
+async function recalc(){
+  try{
+    toast('Checking all entries…');
+    const all=await Store.query(C.txns,[]);
+    const tot={};for(const b of S.banks)tot[b.id]={bal:b.open_amt||0,unrel:0,unrel_n:0,undep:0,undep_n:0};
+    for(const t of all){const e=effect(t);if(e&&tot[e.bank])for(const k of['bal','unrel','unrel_n','undep','undep_n'])tot[e.bank][k]+=e[k]||0}
+    const diffs=S.banks.filter(b=>['bal','unrel','unrel_n','undep','undep_n'].some(k=>(b[k]||0)!==tot[b.id][k]));
+    if(!diffs.length)return toast(`All ${S.banks.length} account balances are correct (${all.length} entries checked).`);
+    if(!confirm(`${diffs.length} account(s) have totals that do not match their entries:\n\n${diffs.map(b=>`${b.name}: shown ${peso(b.bal)}, entries give ${peso(tot[b.id].bal)}`).join('\n')}\n\nFix them now?`))return;
+    for(const b of diffs)await Store.update(C.banks+'/'+b.id,tot[b.id]);
+    logAudit('RECALC',`Fixed balances of ${diffs.map(b=>b.name).join(', ')}`);
+    toast('Balances fixed.');
+  }catch(e){toast(errMsg(e),true)}
+}
+
+/* ---------- Users (admin) ---------- */
+function vUsers(){
+  const users=S.users;
+  const ok=users.filter(u=>u.hash&&u.salt),old=users.filter(u=>!(u.hash&&u.salt));
+  return `<div class="panel">
+  <div class="row" style="margin-bottom:12px"><h1 style="margin:0">Users</h1><span class="spacer"></span><button class="btn primary" data-act="userNew">+ Add user</button></div>
+  <p class="muted small" style="margin-top:0"><b>Administrator</b>: everything, incl. bank accounts and users. <b>Encoder</b>: add, edit, release, deposit and void entries. <b>Viewer</b>: view and export only.</p>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Bank accounts</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>
+  ${ok.map(u=>`<tr><td class="b">${h(u.name)}${u.id===S.user.id?' <span class="pill p-info">you</span>':''}</td><td>${h(u.username||u.id)}</td><td>${ROLES[u.role]||h(u.role)}</td>
+  <td class="small">${u.role==='ADMIN'||!Array.isArray(u.banks)?'All':u.banks.map(bankName).map(h).join(', ')||'None'}</td>
+  <td>${u.active===false?'<span class="pill p-mute">Deactivated</span>':u.must_change?'<span class="pill p-warn">Temporary password</span>':'<span class="pill p-ok">Active</span>'}</td>
+  <td class="small">${fdt(u.last_login)||'—'}</td>
+  <td class="row" style="flex-wrap:nowrap"><button class="btn sm" data-act="userEdit" data-id="${u.id}">Edit</button><button class="btn sm" data-act="userReset" data-id="${u.id}">Reset password</button></td></tr>`).join('')}
+  </tbody></table></div></div>
+  ${old.length?`<div class="panel"><h2>Old records from the previous tracker</h2><p class="muted small" style="margin-top:0">These ${old.length} record(s) in cash_users have no password for this tracker and cannot sign in. Delete them, or re-add the person with "Add user".</p>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>Username</th><th>Document id</th><th></th></tr></thead><tbody>${old.map(u=>`<tr><td>${h(u.name||'')}</td><td>${h(u.username||u.email||'')}</td><td class="small muted">${h(u.id)}</td><td><button class="btn sm danger" data-act="userDelOld" data-id="${u.id}">Delete</button></td></tr>`).join('')}</tbody></table></div></div>`:''}`;
+}
+function bankChecks(sel){
+  const all=!Array.isArray(sel);
+  return `<div class="stack" style="gap:6px"><label class="chk"><input type="checkbox" name="allBanks" ${all?'checked':''} data-act="allBanksToggle"> All bank accounts (including ones added later)</label>
+  <div id="bankList" class="stack" style="gap:6px;padding-left:22px;${all?'display:none':''}">${S.banks.map(b=>`<label class="chk"><input type="checkbox" name="bk_${b.id}" ${!all&&sel.includes(b.id)?'checked':''}> ${h(b.name)}</label>`).join('')}</div></div>`;
+}
+function dlgUser(u){
+  const n=!u;u=u||{role:'ENCODER',active:true,banks:null};const pw=n?tempPassword():'';
+  openDlg(`<h2>${n?'Add user':'Edit user'}</h2><form id="fUser" class="stack">
+  <div class="grid2"><label class="f">Full name<input type="text" name="name" required value="${h(u.name)}"></label>
+  <label class="f">Username or email<input type="text" name="username" required value="${h(u.username||'')}" ${n?'':'readonly'} autocomplete="off"></label>
+  <label class="f">Role<select name="role">${Object.entries(ROLES).map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select></label>
+  ${n?`<label class="f">Temporary password<input type="text" name="pw" required minlength="8" value="${pw}" autocomplete="off"></label>`:`<label class="chk" style="align-self:end"><input type="checkbox" name="active" ${u.active!==false?'checked':''} ${u.id===S.user.id?'disabled':''}> Active (can sign in)</label>`}</div>
+  <div><div class="small muted b" style="margin-bottom:6px">Bank accounts this user can see (administrators see all)</div>${bankChecks(u.banks)}</div>
+  ${n?'<p class="muted small" style="margin:0">Give the temporary password to the user. They will be asked to choose their own password at first sign-in.</p>':''}
+  <div class="acts">${!n&&u.id!==S.user.id?'<button type="button" class="btn danger" data-act="userDel" style="margin-right:auto">Delete user</button>':''}<button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>`,{user:u,isNew:n});
+}
+function readBanks(f){if(f.allBanks)return null;return S.banks.filter(b=>f['bk_'+b.id]).map(b=>b.id)}
+function activeAdmins(exceptId){return S.users.filter(u=>u.role==='ADMIN'&&u.active!==false&&u.hash&&u.id!==exceptId).length}
+async function saveUser(f){
+  const d=S.dlg,name=f.name.trim(),role=f.role,banks=readBanks(f);
+  if(!name)return toast('Enter the name.',true);
+  try{
+    if(d.isNew){
+      const username=f.username.trim(),id=userId(username);
+      if(!id)return toast('Enter a username.',true);
+      if((f.pw||'').length<8)return toast('The temporary password needs at least 8 characters.',true);
+      if(await Store.get(C.users+'/'+id))return toast('That username is already taken.',true);
+      const hs=await makeHash(f.pw);
+      await Store.set(C.users+'/'+id,{username,name,role,banks,active:true,must_change:true,...hs,created_at:nowISO(),created_by:S.user.name,pw_set_at:nowISO(),pw_set_by:S.user.name});
+      logAudit('USER_ADD',`Added user ${name} (${username}) as ${ROLES[role]}`,id);
+      closeDlg();showPassword(name,username,f.pw);
+    }else{
+      const u=d.user,active=u.id===S.user.id?true:!!f.active;
+      if(u.role==='ADMIN'&&(role!=='ADMIN'||!active)&&!activeAdmins(u.id))return toast('Keep at least one active administrator.',true);
+      if(u.id===S.user.id&&role!=='ADMIN')return toast('You cannot remove your own administrator role.',true);
+      await Store.update(C.users+'/'+u.id,{name,role,banks,active,...stamp()});
+      logAudit('USER_EDIT',`Edited user ${name}: ${ROLES[role]}, ${active?'active':'deactivated'}`,u.id);
+      closeDlg();toast('User saved.');
+    }
+  }catch(e){toast(errMsg(e),true)}
+}
+function dlgReset(u){
+  openDlg(`<h2>Reset password</h2><form id="fReset" class="stack">
+  <p style="margin:0">Set a new password for <b>${h(u.name)}</b> (${h(u.username||u.id)}). Their current password stops working right away and they are signed out on every device.</p>
+  <label class="f">New password<input type="text" name="pw" required minlength="8" value="${tempPassword()}" autocomplete="off"></label>
+  <label class="chk"><input type="checkbox" name="must" checked> Ask them to choose their own password at next sign-in</label>
+  <div class="acts"><button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary" type="submit">Reset password</button></div></form>`,{user:u});
+}
+async function saveReset(f){
+  const u=S.dlg.user;
+  if((f.pw||'').length<8)return toast('The password needs at least 8 characters.',true);
+  try{
+    const hs=await makeHash(f.pw);
+    await Store.update(C.users+'/'+u.id,{...hs,must_change:!!f.must,pw_set_at:nowISO(),pw_set_by:S.user.name});
+    logAudit('USER_RESET_PW',`Reset the password of ${u.name} (${u.username||u.id})`,u.id);
+    if(u.id===S.user.id){closeDlg();return}
+    closeDlg();showPassword(u.name,u.username||u.id,f.pw);
+  }catch(e){toast(errMsg(e),true)}
+}
+function showPassword(name,username,pw){
+  openDlg(`<h2>Password ready</h2><p>Give these to <b>${h(name)}</b>. The password is shown only now; it is not stored anywhere readable.</p>
+  <div class="stack"><div><div class="small muted">Username</div><div class="mono">${h(username)}</div></div><div><div class="small muted">Password</div><div class="mono">${h(pw)}</div></div></div>
+  <div class="acts"><button class="btn" data-act="copyPw" data-pw="${h(username+'  /  '+pw)}">Copy</button><button class="btn primary" data-act="close">Done</button></div>`);
+}
+async function deleteUser(id,old){
+  const u=S.users.find(x=>x.id===id);if(!u)return;
+  if(id===S.user.id)return toast('You cannot delete yourself.',true);
+  if(!old&&u.role==='ADMIN'&&!activeAdmins(id))return toast('Keep at least one active administrator.',true);
+  if(!confirm(`Delete ${old?'the old record':'user'} ${u.name||u.username||id}? This cannot be undone.`))return;
+  try{await Store.del(C.users+'/'+id);logAudit('USER_DELETE',`Deleted ${old?'old record':'user'} ${u.name||''} (${u.username||id})`,id);closeDlg();toast('Deleted.')}catch(e){toast(errMsg(e),true)}
+}
+function dlgMyPw(){
+  openDlg(`<h2>Change my password</h2><form id="fMyPw" class="stack">
+  <label class="f">Current password<input type="password" name="cur" required autocomplete="current-password"></label>
+  <label class="f">New password (at least 8 characters)<input type="password" name="pw" minlength="8" required autocomplete="new-password"></label>
+  <label class="f">Confirm new password<input type="password" name="pw2" minlength="8" required autocomplete="new-password"></label>
+  <div class="acts"><button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary" type="submit">Change password</button></div></form>`);
+}
+async function setOwnPassword(pw,pw2,cur){
+  if(pw.length<8)return toast('Use at least 8 characters.',true);
+  if(pw!==pw2)return toast('The two passwords do not match.',true);
+  try{
+    const u=await Store.getServer(C.users+'/'+S.user.id);
+    if(cur!=null&&!ctEq(await pbkdf2(cur,u.salt,u.iter||ITER),u.hash))return toast('Current password is incorrect.',true);
+    const hs=await makeHash(pw);
+    S.user={...S.user,...hs,must_change:false};sessSet(S.user.id,hashSig(S.user));
+    await Store.update(C.users+'/'+S.user.id,{...hs,must_change:false,pw_set_at:nowISO(),pw_set_by:S.user.name});
+    logAudit('PW_CHANGE','Changed own password',S.user.id);
+    closeDlg();toast('Password changed.');
+    if(S.phase==='mustchange'){S.phase='app';startData();route()}
+  }catch(e){toast(errMsg(e),true)}
+}
+
+/* ---------- Activity (admin) ---------- */
+function vActivity(){
+  ensureAudit();
+  const q=S.ui.aQ.trim().toLowerCase();
+  const rows=S.audit.filter(a=>!q||[a.by_name,a.action,a.summary].join(' ').toLowerCase().includes(q));
+  return `<div class="panel"><div class="row" style="margin-bottom:12px"><h1 style="margin:0">Activity</h1><span class="spacer"></span>
+  <input type="search" id="aQ" data-ui="aQ" placeholder="Search user, action" value="${h(S.ui.aQ)}"><button class="btn" data-act="csvAudit">Export CSV</button></div>
+  <p class="muted small" style="margin-top:0">Latest 300 actions. Entries in this log cannot be edited from the tracker.</p>
+  ${rows.length?`<div class="tablewrap"><table><thead><tr><th>When</th><th>User</th><th>Action</th><th>Details</th></tr></thead><tbody>
+  ${rows.map(a=>`<tr><td class="small num" style="white-space:nowrap">${fdt(a.at)}</td><td>${h(a.by_name)}</td><td><span class="pill p-mute">${h(a.action)}</span></td><td>${h(a.summary)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No activity yet.</div>'}</div>`;
+}
+
+/* ================= Entry dialog (new / edit) ================= */
+async function dlgEntry(id,kind){
+  if(!canEdit()&&!id)return;
+  let t=null,legs=null;
+  if(id){
+    t=[...S.open,...(S.regRows||[]),...(S.ledgerRows||[])].find(x=>x.id===id);
+    try{t=await Store.get(C.txns+'/'+id)||t}catch(e){}
+    if(!t)return toast('Entry not found (it may have been deleted).',true);
+    if(t.xfer){legs=await Store.query(C.txns,[['xfer','==',t.xfer]]);}
+    kind=t.xfer?'transfer':t.kind;
+  }
+  kind=kind||'cheque';
+  const banks=visBanks().filter(b=>b.active!==false||(t&&b.id===t.bank));
+  if(!banks.length)return toast(isAdmin()?'Add a bank account first (Bank accounts tab).':'No bank account available to you.',true);
+  S.dlg={id,t,legs,kind,rev:t?t.rev||0:0};
+  drawEntry();
+}
+function drawEntry(){
+  const d=S.dlg,t=d.t||{},kind=d.kind,isNew=!d.id,ro=!canEdit()||t.status==='void';
+  const out=d.legs&&d.legs.find(x=>x.kind==='debit'),inn=d.legs&&d.legs.find(x=>x.kind==='credit');
+  const types=[['cheque','Cheque issued'],['deposit','Collection / deposit'],['debit','Bank debit'],['credit','Bank credit'],['transfer','Transfer between accounts']];
+  const dis=ro?'disabled':'';
+  const only=visBanks().length===1?visBanks()[0].id:'';
+  const bankSel=(name,sel)=>`<select name="${name}" ${dis} required>${bankOptions(sel||only,{blank:'Choose…',includeInactive:!!sel})}</select>`;
+  let f='';
+  if(kind==='cheque')f=`
+    <label class="f">Bank account${bankSel('bank',t.bank||S.ui.bank||'')}</label>
+    <label class="f">Cheque no.<input type="text" name="no" required value="${h(t.no)}" ${dis}></label>
+    <label class="f">Cheque date<input type="date" name="date" required value="${h(t.date||today())}" ${dis}></label>
+    <label class="f">Amount (₱)<input type="text" inputmode="decimal" name="amt" required value="${t.amt?plain(t.amt):''}" placeholder="0.00" ${dis}></label>
+    <label class="f span2">Payee<input type="text" name="payee" required value="${h(t.payee)}" ${dis}></label>
+    <label class="f span2">Particulars / purpose<input type="text" name="note" value="${h(t.note)}" ${dis}></label>
+    <label class="f">Release date <span class="muted">(blank = not yet released)</span><input type="date" name="eff" value="${h(t.eff||'')}" ${dis}></label>`;
+  else if(kind==='deposit')f=`
+    <label class="f">Bank account (to deposit in)${bankSel('bank',t.bank||S.ui.bank||'')}</label>
+    <label class="f">Date received<input type="date" name="date" required value="${h(t.date||today())}" ${dis}></label>
+    <label class="f">Amount (₱)<input type="text" inputmode="decimal" name="amt" required value="${t.amt?plain(t.amt):''}" placeholder="0.00" ${dis}></label>
+    <label class="f">OR / reference no.<input type="text" name="ref" value="${h(t.ref)}" ${dis}></label>
+    <label class="f span2">Received from / source<input type="text" name="payee" value="${h(t.payee)}" placeholder="e.g. Igay RD branch sales" ${dis}></label>
+    <label class="f span2">Particulars<input type="text" name="note" value="${h(t.note)}" ${dis}></label>
+    <label class="f">Deposit date <span class="muted">(blank = not yet deposited)</span><input type="date" name="eff" value="${h(t.eff||'')}" ${dis}></label>
+    <label class="f">Deposit slip no.<input type="text" name="dref" value="${h(t.dref)}" ${dis}></label>`;
+  else if(kind==='transfer')f=`
+    <label class="f">From account${bankSel('bank',out?out.bank:'')}</label>
+    <label class="f">To account${bankSel('xbank',inn?inn.bank:'')}</label>
+    <label class="f">Date<input type="date" name="date" required value="${h((out||t).date||today())}" ${dis}></label>
+    <label class="f">Amount (₱)<input type="text" inputmode="decimal" name="amt" required value="${t.amt?plain(t.amt):''}" placeholder="0.00" ${dis}></label>
+    <label class="f">Reference no.<input type="text" name="ref" value="${h(t.ref)}" ${dis}></label>
+    <label class="f">Particulars<input type="text" name="note" value="${h(t.note)}" ${dis}></label>`;
+  else f=`
+    <label class="f">Bank account${bankSel('bank',t.bank||S.ui.bank||'')}</label>
+    <label class="f">Date<input type="date" name="date" required value="${h(t.date||today())}" ${dis}></label>
+    <label class="f">Amount (₱)<input type="text" inputmode="decimal" name="amt" required value="${t.amt?plain(t.amt):''}" placeholder="0.00" ${dis}></label>
+    <label class="f">Reference no.<input type="text" name="ref" value="${h(t.ref)}" ${dis}></label>
+    <label class="f span2">${kind==='debit'?'Paid to / description':'Received from / description'}<input type="text" name="payee" value="${h(t.payee)}" placeholder="${kind==='debit'?'e.g. Bank service charge, online payment to supplier':'e.g. Interest income, customer online transfer'}" ${dis}></label>
+    <label class="f span2">Particulars<input type="text" name="note" value="${h(t.note)}" ${dis}></label>`;
+  const hint={cheque:'Deducted from cash in bank on the release date. Until then it shows under Unreleased cheques.',deposit:'Added to cash in bank on the deposit date. Until then it shows under Undeposited.',
+    debit:'Deducted from cash in bank on the date — bank charges, online/auto payments, withdrawals.',credit:'Added to cash in bank on the date — interest, incoming online transfers.',transfer:'Moves money between two of your accounts on the date (one debit, one credit).'}[kind];
+  openDlg(`<h2>${isNew?'New entry':(ro?'Entry':'Edit entry')} ${!isNew?typePill(t):''}</h2>
+  ${isNew?`<div class="seg">${types.map(([k,l])=>`<label><input type="radio" name="kindPick" value="${k}" ${k===kind?'checked':''} data-act="kindPick"><span>${l}</span></label>`).join('')}</div>`:''}
+  ${t.status==='void'?`<div class="note">Voided${t.void_reason?': '+h(t.void_reason):''} — ${h(t.voided_by||'')} ${fdt(t.voided_at)}. It is not counted in any balance.</div>`:''}
+  <form id="fEntry" class="stack"><div class="grid2">${f}</div>
+  <p class="muted small" style="margin:0">${hint}</p>
+  ${!isNew?`<p class="muted small" style="margin:0">Created by ${h(t.created_by||'')} ${fdt(t.created_at)}${t.updated_at&&t.updated_at!==t.created_at?` · last changed by ${h(t.updated_by||'')} ${fdt(t.updated_at)}`:''}</p>`:''}
+  <div class="acts">
+    ${!isNew&&canEdit()?(t.status==='void'?'<button type="button" class="btn" data-act="unvoid" style="margin-right:auto">Restore (un-void)</button>':'<button type="button" class="btn danger" data-act="void" style="margin-right:auto">Void</button>'):''}
+    ${!isNew&&isAdmin()?'<button type="button" class="btn danger" data-act="delEntry">Delete</button>':''}
+    <button type="button" class="btn" data-act="close">${ro?'Close':'Cancel'}</button>
+    ${ro?'':`<button class="btn primary" type="submit">${isNew?'Save entry':'Save changes'}</button>${isNew?'<button class="btn" type="submit" name="again" value="1">Save &amp; add another</button>':''}`}
+  </div></form>`);
+}
+async function saveEntry(f,again){
+  const d=S.dlg,kind=d.kind,isNew=!d.id;
+  const amt=parseAmt(f.amt);
+  if(!f.bank)return toast('Choose the bank account.',true);
+  if(!canSee(f.bank))return toast('You do not have access to that account.',true);
+  if(!isISO(f.date))return toast('Enter the date.',true);
+  if(!Number.isFinite(amt)||amt<=0)return toast('Enter a valid amount, e.g. 12500.00',true);
+  const eff=(kind==='cheque'||kind==='deposit')?(f.eff||null):f.date;
+  if(eff&&!isISO(eff))return toast('Check the release / deposit date.',true);
+  const banksToCheck=[f.bank];if(kind==='transfer')banksToCheck.push(f.xbank);
+  for(const bid of banksToCheck){const b=bankById(bid);if(!b)return toast('Choose the bank account.',true);
+    const first=kind==='cheque'||kind==='deposit'?eff:f.date;
+    if(first&&b.open_date&&first<b.open_date)return toast(`${fd(first)} is before the opening date of ${b.name} (${fd(b.open_date)}). Change the date or the account's opening date.`,true)}
+  const base={date:f.date,amt,ref:(f.ref||'').trim(),note:(f.note||'').trim(),payee:(f.payee||'').trim(),...stamp()};
+  const created=isNew?{created_at:nowISO(),created_by:S.user.name}:{created_at:d.t.created_at||'',created_by:d.t.created_by||''};
+  try{
+    if(kind==='transfer'){
+      if(!f.xbank||f.xbank===f.bank)return toast('Choose two different accounts.',true);
+      if(isNew){
+        const xfer=Store.newId(C.txns),a=Store.newId(C.txns),b=Store.newId(C.txns);
+        const common={...base,...created,eff:f.date,status:'posted',xfer};
+        await commit([{id:a,isNew:true,next:{...common,kind:'debit',bank:f.bank,xbank:f.xbank,payee:'Transfer to '+bankName(f.xbank)}},
+                      {id:b,isNew:true,next:{...common,kind:'credit',bank:f.xbank,xbank:f.bank,payee:'Transfer from '+bankName(f.bank)}}],
+          {action:'ADD',summary:`Transfer ${peso(amt)} from ${bankName(f.bank)} to ${bankName(f.xbank)} on ${fd(f.date)}`});
+      }else{
+        const ch=d.legs.map(l=>{const isOut=l.kind==='debit',bank=isOut?f.bank:f.xbank,x=isOut?f.xbank:f.bank;
+          return{id:l.id,rev:l.rev||0,next:{...noId(l),...base,eff:f.date,bank,xbank:x,payee:(isOut?'Transfer to ':'Transfer from ')+bankName(x)}}});
+        await commit(ch,{action:'EDIT',summary:`Edited transfer ${peso(amt)} ${bankName(f.bank)} → ${bankName(f.xbank)} on ${fd(f.date)}`});
+      }
+    }else{
+      if(kind==='cheque'){
+        if(!(f.no||'').trim())return toast('Enter the cheque number.',true);
+        if(!base.payee)return toast('Enter the payee.',true);
+        const no=f.no.trim();
+        const dup=(await Store.query(C.txns,[['no','==',no]])).filter(x=>x.bank===f.bank&&x.id!==d.id&&x.kind==='cheque');
+        if(dup.length&&!confirm(`Cheque #${no} already exists for ${bankName(f.bank)} (${dup.map(x=>`${fd(x.date)} ${x.payee} ${peso(x.amt)}${x.status==='void'?' – void':''}`).join('; ')}). Save anyway?`))return;
+        base.no=no;
+      }
+      if(kind==='deposit')base.dref=(f.dref||'').trim();
+      const id=isNew?Store.newId(C.txns):d.id;
+      const prev=isNew?{}:noId(d.t);
+      const next={...prev,...base,...created,kind,bank:f.bank,eff,status:statusOf(kind,eff)};
+      const label=kind==='cheque'?`cheque #${base.no} ${base.payee}`:`${KIND[kind].toLowerCase()} ${base.payee||base.ref||''}`;
+      let sum=`${isNew?'Added':'Edited'} ${label} ${peso(amt)} (${bankName(f.bank)})`;
+      if(!isNew){const o=d.t,c=[];if(o.amt!==amt)c.push(`amount ${peso(o.amt)} → ${peso(amt)}`);if(o.date!==f.date)c.push(`date ${fd(o.date)} → ${fd(f.date)}`);if((o.eff||null)!==eff)c.push(`${kind==='cheque'?'release':'deposit'} date ${o.eff?fd(o.eff):'none'} → ${eff?fd(eff):'none'}`);if(o.bank!==f.bank)c.push(`account ${bankName(o.bank)} → ${bankName(f.bank)}`);if(c.length)sum+=': '+c.join(', ')}
+      await commit([{id,isNew,rev:isNew?undefined:d.rev,next}],{action:isNew?'ADD':'EDIT',summary:sum});
+    }
+    toast(isNew?'Entry saved.':'Changes saved.');
+    if(again&&isNew){const keepBank=f.bank,keepDate=f.date;S.dlg={id:null,t:{bank:keepBank,date:keepDate},kind,rev:0};drawEntry();const el=$('#fEntry [name=no]')||$('#fEntry [name=amt]');el&&el.focus()}
+    else closeDlg();
+  }catch(e){toast(errMsg(e),true)}
+}
+async function voidEntry(unvoid){
+  const d=S.dlg,t=d.t;let reason='';
+  if(!unvoid){reason=prompt('Reason for voiding (e.g. spoiled cheque, wrong entry):','');if(reason===null)return}
+  const items=d.legs||[t];
+  const ch=items.map(x=>({id:x.id,rev:x.rev||0,next:unvoid?{...noId(x),status:statusOf(x.kind,x.eff),void_reason:null,voided_at:null,voided_by:null,...stamp()}
+                                                          :{...noId(x),status:'void',void_reason:reason,voided_at:nowISO(),voided_by:S.user.name,...stamp()}}));
+  if(unvoid)for(const x of items){if(x.kind==='cheque'||x.kind==='deposit')ch.find(c=>c.id===x.id).next.status=statusOf(x.kind,x.eff)}
+  try{await commit(ch,{action:unvoid?'UNVOID':'VOID',summary:`${unvoid?'Restored':'Voided'} ${t.xfer?'transfer':(t.kind==='cheque'?'cheque #'+t.no:KIND[t.kind].toLowerCase())} ${t.payee||''} ${peso(t.amt)} (${bankName(t.bank)})${reason?' — '+reason:''}`});closeDlg();toast(unvoid?'Entry restored.':'Entry voided.')}
+  catch(e){toast(errMsg(e),true)}
+}
+async function deleteEntry(){
+  const d=S.dlg,t=d.t;
+  if(!confirm('Delete this entry permanently? (Void keeps a record; delete removes it.)'))return;
+  const items=d.legs||[t];
+  try{await commit(items.map(x=>({id:x.id,rev:x.rev||0,next:null})),{action:'DELETE',summary:`Deleted ${t.xfer?'transfer':(t.kind==='cheque'?'cheque #'+t.no:KIND[t.kind].toLowerCase())} ${t.payee||''} ${peso(t.amt)} dated ${fd(t.date)} (${bankName(t.bank)})`});closeDlg();toast('Entry deleted.')}
+  catch(e){toast(errMsg(e),true)}
+}
+
+/* ================= Dialog plumbing ================= */
+function openDlg(html,state){if(state!==undefined)S.dlg=state;$('#dlg').innerHTML=html;$('#dlgwrap').classList.add('open');
+  const first=$('#dlg input:not([type=hidden]):not([readonly]):not([disabled]),#dlg select:not([disabled])');setTimeout(()=>first&&first.focus(),30)}
+function closeDlg(){$('#dlgwrap').classList.remove('open');$('#dlg').innerHTML='';S.dlg=null}
+$('#dlgwrap').addEventListener('mousedown',e=>{if(e.target.id==='dlgwrap')closeDlg()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#dlgwrap').classList.contains('open'))closeDlg()});
+
+/* ================= Events ================= */
+document.addEventListener('click',async e=>{
+  const m=$('#umenu');if(m&&!m.contains(e.target))m.classList.remove('open');
+  const el=e.target.closest('[data-act]');if(!el)return;
+  const a=el.dataset.act,id=el.dataset.id;
+  if(el.tagName==='A'&&a!=='toLedger'&&a!=='toOpen')e.preventDefault();
+  switch(a){
+    case 'menu':m.classList.toggle('open');break;
+    case 'signOut':signOut();break;
+    case 'myPw':m&&m.classList.remove('open');dlgMyPw();break;
+    case 'new':dlgEntry(null,S.route==='undep'?'deposit':'cheque');break;
+    case 'edit':if(e.target.closest('input,button:not([data-act=edit])'))return;dlgEntry(id);break;
+    case 'close':closeDlg();break;
+    case 'kindPick':{const t=S.dlg.t||{};const form=$('#fEntry');if(form){const fdx=Object.fromEntries(new FormData(form));S.dlg.t={...t,bank:fdx.bank||t.bank,date:fdx.date||t.date,amt:parseAmt(fdx.amt)||t.amt,payee:fdx.payee,note:fdx.note,ref:fdx.ref}}S.dlg.kind=el.value;drawEntry();break}
+    case 'toLedger':S.ui.lBank=id;break;
+    case 'toOpen':S.ui.bank=id;break;
+    case 'sel':el.checked?S.ui.sel.add(id):S.ui.sel.delete(id);render();break;
+    case 'selAll':{const rows=openRows(S.route==='unrel'?'cheque':'deposit');if(el.checked)rows.forEach(r=>S.ui.sel.add(r.id));else S.ui.sel.clear();render();break}
+    case 'oneDone':{const inp=document.getElementById('d_'+id);await markDone(el.dataset.kind,[id],inp?inp.value:today(),'');break}
+    case 'bulkDone':await markDone(el.dataset.kind,[...S.ui.sel],S.ui.bulkDate,S.ui.bulkRef.trim());break;
+    case 'void':voidEntry(false);break;
+    case 'unvoid':voidEntry(true);break;
+    case 'delEntry':deleteEntry();break;
+    case 'bankNew':dlgBank(null);break;
+    case 'bankEdit':dlgBank(bankById(id));break;
+    case 'bankDel':deleteBank();break;
+    case 'toggleInactive':S.ui.showInactive=el.checked;render();break;
+    case 'recalc':recalc();break;
+    case 'userNew':dlgUser(null);break;
+    case 'userEdit':dlgUser(S.users.find(u=>u.id===id));break;
+    case 'userReset':dlgReset(S.users.find(u=>u.id===id));break;
+    case 'userDel':deleteUser(S.dlg.user.id,false);break;
+    case 'userDelOld':deleteUser(id,true);break;
+    case 'allBanksToggle':$('#bankList').style.display=el.checked?'none':'';break;
+    case 'copyPw':try{await navigator.clipboard.writeText(el.dataset.pw);toast('Copied.')}catch(err){toast('Select the text and copy it.',true)}break;
+    case 'print':window.print();break;
+    case 'csvOpen':{const k=el.dataset.kind,cfg=openCfg(k);csvDownload(`${cfg.status}-${today()}.csv`,[[cfg.date,k==='cheque'?'Cheque no.':'OR/ref',`Account`,cfg.party,'Particulars','Amount','Age (days)'],...openRows(k).map(t=>[t.date,k==='cheque'?t.no:t.ref,bankName(t.bank),t.payee,t.note,plain(t.amt),daysBetween(t.date,today())])]);break}
+    case 'csvReg':csvDownload(`entries-${S.ui.rFrom}-to-${S.ui.rTo}.csv`,[['Date','Type','Account','Other account','Cheque no.','Ref','Payee/source','Particulars','Amount','Status','Release/deposit date','Deposit slip','Created by','Last changed by'],...regFiltered().map(t=>[t.date,t.xfer?(t.kind==='debit'?'Transfer out':'Transfer in'):KIND[t.kind],bankName(t.bank),t.xbank?bankName(t.xbank):'',t.no||'',t.ref||'',t.payee||'',t.note||'',plain(t.amt),t.status,t.kind==='cheque'||t.kind==='deposit'?(t.eff||''):'',t.dref||'',t.created_by||'',t.updated_by||''])]);break;
+    case 'csvLedger':{if(!S.ledgerRows)return;const b=bankById(S.ui.lBank);
+      const all=S.ledgerRows.filter(t=>t.bank===b.id&&t.status!=='void'&&t.eff&&t.eff>=S.ui.lFrom);const openIn=b.open_date&&b.open_date>=S.ui.lFrom;
+      let run=(b.bal||0)-all.reduce((s,t)=>s+bankSign(t),0)-(openIn?(b.open_amt||0):0);
+      const list=all.filter(t=>t.eff<=S.ui.lTo).sort((x,y)=>x.eff<y.eff?-1:x.eff>y.eff?1:String(x.created_at||'').localeCompare(String(y.created_at||'')));
+      const out=[['Date','Type','No./ref','Payee','Particulars','Deposits & credits','Cheques & debits','Balance'],[S.ui.lFrom,'','','Beginning balance','','','',plain(run)]];
+      if(openIn&&b.open_date<=S.ui.lTo){run+=b.open_amt||0;out.push([b.open_date,'Opening','','Opening balance','',plain(b.open_amt),'',plain(run)])}
+      for(const t of list){const v=bankSign(t);run+=v;out.push([t.eff,t.xfer?'Transfer':KIND[t.kind],t.kind==='cheque'?t.no:(t.ref||t.dref||''),t.payee||'',t.note||'',v>0?plain(v):'',v<0?plain(-v):'',plain(run)])}
+      csvDownload(`ledger-${b.name.replace(/[^\w-]+/g,'_')}-${S.ui.lFrom}-to-${S.ui.lTo}.csv`,out);break}
+    case 'csvAudit':csvDownload(`activity-${today()}.csv`,[['When','User','Action','Details'],...S.audit.map(a=>[a.at,a.by_name,a.action,a.summary])]);break;
+  }
+});
+document.addEventListener('input',e=>{
+  const el=e.target;
+  if(el.dataset.draft){S.ui.drafts[el.dataset.draft]=el.value;return}
+  if(el.dataset.ui&&(el.type==='search'||el.type==='text')){S.ui[el.dataset.ui]=el.value;if(el.dataset.ui!=='bulkRef')schedule()}
+});
+document.addEventListener('change',e=>{
+  const el=e.target;
+  if(el.dataset.ui&&el.type!=='search'&&el.type!=='text'){
+    const k=el.dataset.ui;
+    if(el.type==='date'&&!isISO(el.value)){el.value=S.ui[k];return}
+    S.ui[k]=el.value;
+    if(k==='lFrom'&&S.ui.lTo<S.ui.lFrom)S.ui.lTo=S.ui.lFrom;
+    if(k==='rFrom'&&S.ui.rTo<S.ui.rFrom)S.ui.rTo=S.ui.rFrom;
+    if(k==='rTo'&&S.ui.rTo<S.ui.rFrom)S.ui.rFrom=S.ui.rTo;
+    if(k==='bank')S.ui.sel=new Set();
+    if(k!=='bulkDate')render();
+  }
+});
+document.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const form=e.target,f=Object.fromEntries(new FormData(form));
+  const btns=form.querySelectorAll('button');btns.forEach(b=>b.disabled=true);
+  try{
+    switch(form.id){
+      case 'fLogin':S.loginNote='';S.loginUser=f.username;try{await signIn(f.username,f.pw)}catch(err){S.loginNote=err.message;render()}break;
+      case 'fSetup':{
+        if(f.pw.length<8){toast('Use at least 8 characters.',true);break}
+        if(f.pw!==f.pw2){toast('The two passwords do not match.',true);break}
+        try{
+          if(await adminExists()){S.phase='login';render();toast('An administrator already exists. Please sign in.');break}
+          const id=userId(f.username);if(!id){toast('Enter a username.',true);break}
+          const hs=await makeHash(f.pw);
+          await Store.set(C.users+'/'+id,{username:f.username.trim(),name:f.name.trim()||'Administrator',role:'ADMIN',banks:null,active:true,must_change:false,...hs,created_at:nowISO(),created_by:'setup',pw_set_at:nowISO(),pw_set_by:'setup'});
+          await Store.set(C.settings+'/main',{org:'TS Laundry'}).catch(()=>{});
+          S.phase='login';render();await signIn(f.username,f.pw);
+        }catch(err){toast(errMsg(err),true)}
+        break}
+      case 'fMust':await setOwnPassword(f.pw,f.pw2,null);break;
+      case 'fMyPw':await setOwnPassword(f.pw,f.pw2,f.cur);break;
+      case 'fEntry':await saveEntry(f,e.submitter&&e.submitter.name==='again');break;
+      case 'fBankAcct':await saveBank(f);break;
+      case 'fUser':await saveUser(f);break;
+      case 'fReset':await saveReset(f);break;
+      case 'fOrg':try{await Store.set(C.settings+'/main',{...S.settings,org:(f.org||'').trim()});logAudit('SETTINGS',`Company name set to ${(f.org||'').trim()}`);toast('Saved.')}catch(err){toast(errMsg(err),true)}break;
+    }
+  }finally{btns.forEach(b=>{if(document.contains(b))b.disabled=false})}
+});
+
+/* ================= Start ================= */
+(async function boot(){
+  try{Store=DEMO?makeLocal():makeRemote()}catch(e){$('#app').innerHTML=`<div class="login"><div class="panel"><h1>Cannot start</h1><p>${h(errMsg(e))}</p><p class="muted">Check the internet connection and reload.</p></div></div>`;return}
+  if(await resume())return;
+  S.phase='login';
+  try{if(!(await adminExists()))S.phase='setup'}catch(e){S.loginNote=errMsg(e)}
+  render();
 })();
-</script></body></html>
+</script>
+</body>
+</html>
