@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cash, Cheques & Deposits Tracker</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f4f6f9;--card:#fff;--tx:#1b2430;--mut:#667085;--ln:#e1e5ea;--pri:#1f3864;--pt:#fff;--ok:#1a7f4b;--warn:#a85d00;--bad:#c0392b;--hl:#eef2fa}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161c;--card:#1b222b;--tx:#e8ecf1;--mut:#9aa6b5;--ln:#2d3745;--pri:#4b73c9;--pt:#fff;--ok:#4cc38a;--warn:#e5a04a;--bad:#f0776a;--hl:#222c3a}}
+:root[data-theme="dark"]{--bg:#12161c;--card:#1b222b;--tx:#e8ecf1;--mut:#9aa6b5;--ln:#2d3745;--pri:#4b73c9;--pt:#fff;--ok:#4cc38a;--warn:#e5a04a;--bad:#f0776a;--hl:#222c3a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+main{max-width:1200px;margin:0 auto;padding:16px}h1{font-size:20px;margin:0}
+.top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.top h1{flex:1}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.tab{padding:8px 14px;border:1px solid var(--ln);background:var(--card);color:var(--tx);border-radius:8px;cursor:pointer;font:inherit}
+.tab.on{background:var(--pri);color:var(--pt);border-color:var(--pri)}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:10px;padding:12px;margin-bottom:12px}
+.card h3{margin:0 0 8px;font-size:14px}.narrow{max-width:360px;margin:40px auto}.narrow input{width:100%;margin-bottom:8px}
+.frm{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.frm label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:2px}
+input,select{font:inherit;padding:6px 8px;border:1px solid var(--ln);border-radius:6px;background:var(--bg);color:var(--tx);min-width:0}
+.frm input,.frm select{width:150px}
+button.b{padding:7px 14px;border:0;border-radius:6px;background:var(--pri);color:var(--pt);cursor:pointer;font:inherit}
+button.x{border:1px solid var(--ln);background:none;color:var(--tx);border-radius:6px;padding:3px 8px;cursor:pointer;font:inherit;font-size:12px}
+button.r{color:var(--bad)}
+.w{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:640px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--ln);text-align:left;white-space:nowrap}th{font-size:12px;color:var(--mut);font-weight:600}
+.n{text-align:right;font-variant-numeric:tabular-nums}tr.tot td{font-weight:700;background:var(--hl)}
+tr.v td{opacity:.5;text-decoration:line-through}.mut{color:var(--mut)}.ok{color:var(--ok)}.wn{color:var(--warn)}
+td input.in{width:140px}#err{color:var(--bad);min-height:18px;font-size:13px}.note{font-size:12px;color:var(--mut);margin:8px 0 0}
+.pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:var(--hl);color:var(--mut)}
+.pill.ok{background:rgba(26,127,75,.15);color:var(--ok)}.pill.bl{background:rgba(75,115,201,.16);color:var(--pri)}
+tr[data-act=uedit]{cursor:pointer}tr[data-act=uedit]:hover td{background:var(--hl)}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:calc(24px + env(safe-area-inset-top,0px)) 12px 24px;overflow:auto;z-index:5}
+.ov[hidden]{display:none}.mod{max-width:720px;width:100%}.frm input[type=checkbox]{width:auto}.ck{flex-direction:row!important;align-items:center;gap:6px!important;color:var(--tx)!important;font-size:13px!important}
+</style></head>
+<body><main>
+<div id="err"></div>
+<div id="login" class="card narrow"><h3>Sign in</h3>
+  <input id="lu" placeholder="Email" autocomplete="username"><input id="lp" type="password" placeholder="Password" autocomplete="current-password">
+  <button class="b" data-act="login">Sign in</button></div>
+<div id="app" hidden>
+  <div class="top"><h1>Cash, Cheques &amp; Deposits Tracker</h1><span id="who" class="mut"></span>
+    <select id="fil" aria-label="Filter by bank account"></select>
+    <button class="x" data-act="tab" data-tab="pw">Change password</button><button class="x" data-act="out">Sign out</button></div>
+  <div class="bar" id="tabs"></div>
+  <section id="s-sum"><div class="card"><div class="w" id="sumT"></div>
+    <p class="note">Only transactions dated on/after a bank account's opening-balance date are counted. Book balance = opening + deposited items − all issued withdrawals. Available balance = opening + deposited − released withdrawals only. Bank balance = only items you marked as reflected in the bank (Reconciliation tab). Void items are excluded.</p></div></section>
+  <section id="s-acc" hidden><div id="f-accounts"></div><div class="card"><div class="w" id="accT"></div></div></section>
+  <section id="s-dep" hidden><div id="f-deposits"></div><div class="card"><div class="w" id="depT"></div></div></section>
+  <section id="s-wd" hidden><div id="f-withdrawals"></div><div class="card"><div class="w" id="wdT"></div></div></section>
+  <section id="s-und" hidden><div class="card"><h3>Received, not yet deposited</h3><div class="w" id="undT"></div><p class="note">Enter the date deposited to the bank. The item then moves to Deposits and counts toward the balances.</p></div></section>
+  <section id="s-unrel" hidden><div class="card"><h3>Issued, not yet released</h3><div class="w" id="unrelT"></div><p class="note">Enter the date released. The item then moves to Withdrawals as Released and counts toward the available balance.</p></div></section>
+  <section id="s-rec" hidden><div class="card"><h3>Book vs bank</h3><div class="w" id="recS"></div></div>
+    <div class="card"><div class="bar"><h3 style="margin:0">Match to bank</h3><select id="rf"><option value="">All items</option><option value="p">Pending only</option></select></div>
+    <div class="w" id="recT"></div><p class="note">Enter the actual date each transaction reflected in the bank statement. Only deposited and released items appear here.</p></div></section>
+  <section id="s-set" hidden>
+    <div class="top" style="align-items:flex-start"><div style="flex:1"><h2 style="margin:0 0 4px;font-size:22px">User accounts</h2><p class="mut" style="margin:0;max-width:640px">Everyone signs in with their own email and password. Each account opens only the bank accounts ticked for it. Click a row to edit its access.</p></div><button class="b" data-act="uadd">Add account</button></div>
+    <label class="mut" style="font-size:13px">Show accounts for<br><select id="uf" style="margin:4px 0 12px;min-width:240px"></select></label>
+    <div class="card"><div class="w" id="usrT"></div></div></section>
+  <section id="s-log" hidden><div class="card"><div class="w" id="logT"></div><p class="note">Latest 300 actions. Passwords are never recorded.</p></div></section>
+  <section id="s-pw" hidden><div class="card"><h3>Change my password</h3><div class="frm"><label>New password (min. 6 characters)<input id="np" type="password"></label><button class="b" data-act="pw">Update password</button></div></div></section>
+</div><div id="ov" class="ov" hidden><div class="card mod" id="mod"></div></div></main>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const $=s=>document.querySelector(s),E=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>(+n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const sum=l=>l.reduce((s,x)=>s+(+x.amount||0),0),val=id=>$('#'+id).value.trim(),msg=t=>{$('#err').textContent=t||''};
+// ===== Firebase web app config (project database-55b53) =====
+const FB={apiKey:'AIzaSyBfrdsMbfhQn4uF8HbZSkCx2kOLnNClfwY',authDomain:'database-55b53.firebaseapp.com',projectId:'database-55b53',storageBucket:'database-55b53.firebasestorage.app',messagingSenderId:'706968150921',appId:'1:706968150921:web:575c3860ae843e419cb758'};
+let db,auth,sec,justIn=false,me=null,cfg=null,U=[],A=[],D=[],W=[],LG=[],fAcc='',editing={},started=false,restored=false,ur=false,cr=false,built=false;
+const PK=[['sum','Summary'],['acc','Bank Accounts'],['dep','Deposits'],['wd','Withdrawals'],['rec','Reconciliation']];
+const TABS=[...PK.slice(0,3),['und','Undeposited'],PK[3],['unrel','Unreleased Cheques'],PK[4]];
+const lvl=k=>!me?'none':me.role==='admin'?'edit':(k==='set'||k==='log')?'none':((me.perms||{})[{und:'dep',unrel:'wd'}[k]||k]||'none');
+const ed=k=>lvl(k)==='edit',L=c=>({accounts:A,deposits:D,withdrawals:W}[c]);
+const accName=id=>(A.find(a=>a.id===id)||{name:'(deleted account)'}).name;
+const SCH={
+accounts:{t:'Bank Account',k:'acc',f:[['name','Account name','text'],['number','Account no.','text'],['opening','Opening balance','number'],['openingDate','Opening balance as of (date)','date']]},
+deposits:{t:'Deposit',k:'dep',f:[['type','Type','sel:Cheque,Cash'],['from','Received from','text'],['purpose','Purpose (for what)','text'],['accountId','Deposit to bank','acct'],['refNo','Cheque no. / ref','text'],['dateIssued','Date on cheque (issued)','date'],['dateDeposited','Date deposited to bank','date'],['amount','Amount','number']]},
+withdrawals:{t:'Withdrawal',k:'wd',f:[['type','Type','sel:Cheque,Cash'],['payee','Payee','text'],['purpose','Purpose (for what)','text'],['accountId','Withdraw from bank','acct'],['refNo','Cheque no.','text'],['dateIssued','Date on cheque (issued)','date'],['dateReleased','Date released','date'],['amount','Amount','number']]}};
+async function log(action,detail,who){try{await db.collection('logs').add({ts:firebase.firestore.FieldValue.serverTimestamp(),user:who||(me&&me.username)||'?',action,detail:detail||''})}catch(e){}}
+const desc=(c,r)=>c==='accounts'?(r.name||''):c==='users'?(r.username||''):`${r.type||''} ${r.refNo||''} ${fmt(r.amount)} · ${accName(r.accountId)}`.trim();
+function diff(o,n){const ch=[];for(const k in n){if(k==='ts'||k==='order')continue;const a=o[k]??'',b=n[k]??'';if(String(a)!==String(b))ch.push(`${k}: ${k==='accountId'?accName(a):a||'—'} → ${k==='accountId'?accName(b):b||'—'}`)}return ch.length?' | '+ch.join('; '):''}
+function calc(a){const od=a.openingDate||'',op=+a.opening||0,cnt=d=>!od||!d||d>=od,ok=x=>x.accountId===a.id&&!x.void;
+ const dep=D.filter(x=>ok(x)&&x.dateDeposited&&cnt(x.dateDeposited)),und=D.filter(x=>ok(x)&&!x.dateDeposited),wd=W.filter(x=>ok(x)&&cnt(x.dateIssued));
+ const rel=wd.filter(x=>x.dateReleased),bD=dep.filter(x=>x.bankDate),bW=rel.filter(x=>x.bankDate);
+ return{op,dep:sum(dep),und:sum(und),iss:sum(wd),rel:sum(rel),book:op+sum(dep)-sum(wd),av:op+sum(dep)-sum(rel),bank:op+sum(bD)-sum(bW),pend:dep.length-bD.length+rel.length-bW.length}}
+const tbl=(h,rows,foot)=>rows.length?`<table><thead><tr>${h.map(x=>`<th class="${x[1]||''}">${x[0]}</th>`).join('')}</tr></thead><tbody>${rows.join('')}${foot||''}</tbody></table>`:'<p class="mut">Nothing here yet.</p>';
+const tr=(c,cls,at)=>`<tr class="${cls||''}"${at||''}>${c.map(x=>Array.isArray(x)?`<td class="${x[1]}">${x[0]}</td>`:`<td>${x}</td>`).join('')}</tr>`;
+const btn=(act,col,id,t,c)=>`<button class="x ${c||''}" data-act="${act}" data-col="${col}" data-id="${E(id)}">${t}</button>`;
+const acts=(k,col,x)=>ed(k)?btn('edit',col,x.id,'Edit')+' '+(col==='accounts'?'':btn('void',col,x.id,x.void?'Restore':'Void')+' ')+btn('del',col,x.id,'Delete','r'):'';
+function form(col){const s=SCH[col];return`<div class="card" id="fc-${col}"><h3 id="${col}_h">Add ${s.t}</h3><div class="frm">`+s.f.map(([k,l,t])=>`<label>${l}`+(t.startsWith('sel:')?`<select id="${col}_${k}">${t.slice(4).split(',').map(o=>`<option>${o}</option>`).join('')}</select>`:t==='acct'?`<select id="${col}_${k}" class="acs"></select>`:`<input id="${col}_${k}" type="${t}"${t==='number'?' step="0.01"':''}>`)+'</label>').join('')+`<button class="b" id="${col}_b" data-act="save" data-col="${col}">Add</button><button class="x" id="${col}_c" data-act="cancel" data-col="${col}" hidden>Cancel</button></div></div>`}
+const ps=(id,k,v)=>`<select data-act="perm" data-id="${E(id)}" data-k="${k}">${['none','view','edit'].map(o=>`<option${o===v?' selected':''}>${o}</option>`).join('')}</select>`;
+function build(){if(built)return;built=true;
+ for(const c in SCH){$('#f-'+c).innerHTML=form(c);$('#fc-'+c).hidden=!ed(SCH[c].k)}}
+function opts(){const o=A.map(a=>`<option value="${E(a.id)}">${E(a.name)}</option>`).join('');
+ document.querySelectorAll('.acs').forEach(s=>{const v=s.value;s.innerHTML=o||'<option value="">Add a bank account first</option>';if(v)s.value=v});
+ const uv=$('#uf').value;$('#uf').innerHTML='<option value="">All bank accounts</option>'+o;$('#uf').value=uv;const f=$('#fil');f.innerHTML='<option value="">All accounts</option>'+o;f.value=fAcc}
+function render(){if(!me||!built)return;opts();
+ const R=A.filter(a=>!fAcc||a.id===fAcc).map(a=>({a,c:calc(a)})),T=k=>R.reduce((s,r)=>s+r.c[k],0);
+ $('#sumT').innerHTML=tbl([['Bank account'],['Opening balance','n'],['Deposited','n'],['Received, not yet deposited','n'],['Withdrawals issued','n'],['Released','n'],['Book balance','n'],['Available balance','n'],['Bank balance (reconciled)','n']],
+  R.map(({a,c})=>tr([`<b>${E(a.name)}</b><div class="mut">${E(a.number)}</div>`,[fmt(c.op)+`<div class="mut">as of ${E(a.openingDate||'—')}</div>`,'n'],[fmt(c.dep),'n'],[fmt(c.und),'n'],[fmt(c.iss),'n'],[fmt(c.rel),'n'],[`<b>${fmt(c.book)}</b>`,'n'],[`<b>${fmt(c.av)}</b>`,'n'],[fmt(c.bank),'n']])),
+  tr(['TOTAL',...['op','dep','und','iss','rel','book','av','bank'].map(k=>[fmt(T(k)),'n'])],'tot'));
+ $('#accT').innerHTML=tbl([['Account name'],['Account no.'],['Opening balance','n'],['As of'],['']],A.map(a=>tr([`<b>${E(a.name)}</b>`,E(a.number),[fmt(a.opening),'n'],E(a.openingDate),acts('acc','accounts',a)])));
+ for(const col of ['deposits','withdrawals']){const dp=col==='deposits',k=dp?'dep':'wd',rows=L(col).filter(x=>!fAcc||x.accountId===fAcc).sort((a,b)=>(b.dateIssued||'').localeCompare(a.dateIssued||'')||(b.ts||0)-(a.ts||0));
+  $(dp?'#depT':'#wdT').innerHTML=tbl([['Date on cheque'],['Type'],[dp?'Ref / cheque no.':'Cheque no.'],[dp?'Received from':'Payee'],['Purpose'],[dp?'Deposit to':'Withdraw from'],['Amount','n'],[dp?'Date deposited':'Date released'],['Status'],['']],
+   rows.map(x=>{const st=x.void?'Void':dp?(x.dateDeposited?'Deposited':'Not yet deposited'):(x.dateReleased?'Released':'Unreleased');
+    return tr([E(x.dateIssued),E(x.type),E(x.refNo),E(dp?x.from:x.payee),E(x.purpose),E(accName(x.accountId)),[fmt(x.amount),'n'],E(dp?x.dateDeposited:x.dateReleased),`<span class="${st==='Deposited'||st==='Released'?'ok':st==='Void'?'':'wn'}">${st}</span>`,acts(k,col,x)],x.void?'v':'')}),
+   tr(['Total (excl. void)','','','','','',[fmt(sum(rows.filter(x=>!x.void))),'n'],'','',''],'tot'))}
+ for(const[col,el,f,h,who]of[['deposits','#undT','dateDeposited','Date deposited','from'],['withdrawals','#unrelT','dateReleased','Date released','payee']]){const k=col==='deposits'?'dep':'wd',rows=L(col).filter(x=>!x.void&&!x[f]&&(!fAcc||x.accountId===fAcc)).sort((a,b)=>(a.dateIssued||'').localeCompare(b.dateIssued||''));
+  $(el).innerHTML=tbl([['Date on cheque'],['Type'],['Ref / cheque no.'],[who==='from'?'Received from':'Payee'],['Purpose'],[who==='from'?'Deposit to':'Withdraw from'],['Amount','n'],[h]],
+   rows.map(x=>tr([E(x.dateIssued),E(x.type),E(x.refNo),E(x[who]),E(x.purpose),E(accName(x.accountId)),[fmt(x.amount),'n'],ed(k)?`<input class="in" type="date" data-act="setd" data-col="${col}" data-f="${f}" data-id="${E(x.id)}">`:'—'])),
+   tr(['Total pending','','','','','',[fmt(sum(rows)),'n'],''],'tot'))}
+ const all=A.filter(a=>!fAcc||a.id===fAcc);
+ $('#recS').innerHTML=tbl([['Bank account'],['Book balance','n'],['Bank balance','n'],['Difference (outstanding)','n'],['Pending items','n']],all.map(a=>{const c=calc(a);return tr([`<b>${E(a.name)}</b>`,[fmt(c.book),'n'],[fmt(c.bank),'n'],[fmt(c.book-c.bank),'n'],[c.pend,'n']])}));
+ const it=[...D.filter(x=>!x.void&&x.dateDeposited).map(x=>({c:'deposits',x,dt:x.dateDeposited,s:1,k:'Deposit',d:`${x.from||''} ${x.purpose||''}`})),...W.filter(x=>!x.void&&x.dateReleased).map(x=>({c:'withdrawals',x,dt:x.dateReleased,s:-1,k:'Withdrawal',d:`${x.payee||''} ${x.purpose||''}`}))]
+  .filter(i=>(!fAcc||i.x.accountId===fAcc)&&($('#rf').value!=='p'||!i.x.bankDate)).sort((a,b)=>b.dt.localeCompare(a.dt));
+ $('#recT').innerHTML=tbl([['Date'],['Kind'],['Ref'],['Description'],['Bank'],['Amount','n'],['Date reflected in bank'],['Status']],it.map(i=>tr([E(i.dt),i.k,E(i.x.type+' '+(i.x.refNo||'')),E(i.d),E(accName(i.x.accountId)),[(i.s<0?'-':'')+fmt(i.x.amount),'n'],ed('rec')?`<input class="in" type="date" data-act="bank" data-col="${i.c}" data-id="${E(i.x.id)}" value="${E(i.x.bankDate||'')}">`:E(i.x.bankDate),i.x.bankDate?'<span class="ok">Reconciled</span>':'<span class="wn">Pending</span>'])));
+ if(me.role==='admin'){
+  const pill=(t,c)=>`<span class="pill ${c||''}">${t}</span>`,dt=ts=>{if(!ts)return'—';const d=new Date(ts);return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})},uf=$('#uf').value;
+  const accTxt=u=>u.allAcc===false?((u.accIds||[]).map(accName).join(', ')||'None'):'All bank accounts';
+  $('#usrT').innerHTML=tbl([['Email'],['Name'],['Role'],['Department'],['Bank accounts'],['Access'],['Status'],['Updated']],[
+   ...U.slice().sort((a,b)=>(b.admin?1:0)-(a.admin?1:0)).filter(u=>!uf||u.allAcc!==false||(u.accIds||[]).includes(uf)).map(u=>tr([`<b>${E(u.username)}</b>${u.admin?' '+pill('Main admin','bl'):''}${u.id===me.id?' <span class="mut">You</span>':''}`,E(u.name),E(u.admin?(u.jr||'Admin'):u.jr),E(u.dept),E(accTxt(u)),u.admin?pill('Full','bl'):'<span class="mut">Custom</span>',u.active===false?pill('Disabled'):pill('Active','ok'),dt(u.upd)],'',` data-act="uedit" data-id="${E(u.id)}"`))]);
+  $('#logT').innerHTML=tbl([['When'],['User'],['Action'],['Details']],LG.map(l=>tr([E(new Date(l.ts&&l.ts.toMillis?l.ts.toMillis():(l.ts||Date.now())).toLocaleString('en-PH')),E(l.user),E(l.action),E(l.detail)])))}}
+function show(t){document.querySelectorAll('section').forEach(s=>s.hidden=s.id!=='s-'+t);document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===t))}
+function resetForm(c){delete editing[c];for(const[k,,t]of SCH[c].f){const e=$(`#${c}_${k}`);if(e.tagName==='SELECT')e.selectedIndex=0;else e.value=t==='number'&&c==='accounts'?'0':''}
+ $(`#${c}_h`).textContent='Add '+SCH[c].t;$(`#${c}_b`).textContent='Add';$(`#${c}_c`).hidden=true}
+async function saveRow(c){const s=SCH[c],d={};for(const[k,,t]of s.f){const v=val(`${c}_${k}`);d[k]=t==='number'?(parseFloat(v)||0):v}
+ if(!ed(s.k))return;
+ if(c==='accounts'){if(!d.name)return msg('Enter an account name.');if(A.some(a=>a.id!==editing[c]&&a.name.toLowerCase()===d.name.toLowerCase()))return msg('That account name already exists.')}
+ else{if(!d.accountId)return msg('Pick a bank account (add one in Bank Accounts first).');if(!(d.amount>0))return msg('Enter an amount.')}
+ const id=editing[c];
+ try{if(id){const o=L(c).find(x=>x.id===id)||{};await db.collection(c).doc(id).update(d);log('Edited '+s.t,desc(c,d)+diff(o,d))}
+  else{d.ts=Date.now();if(c==='accounts')d.order=d.ts;await db.collection(c).add(d);log('Added '+s.t,desc(c,d))}
+  resetForm(c);msg('')}catch(e){msg('Could not save: '+(e.code||e.message))}}
+async function login(){const u=val('lu').toLowerCase(),p=$('#lp').value;if(!u||!p)return msg('Enter your email and password.');
+ try{justIn=true;await auth.signInWithEmailAndPassword(u,p);$('#lp').value=''}catch(e){justIn=false;msg(/network/.test(e.code||'')?'Network error. Please try again.':'Invalid email or password.')}}
+function enter(usr,fresh){me=usr;try{sessionStorage.setItem('ct_u',usr.username)}catch(e){}
+ msg('');if(fresh)log('Signed in');build();$('#login').hidden=true;$('#app').hidden=false;
+ $('#who').textContent=`${me.name||me.username} (${me.role})`;
+ const vis=[...TABS.filter(([k])=>lvl(k)!=='none'),...(me.role==='admin'?[['set','User Settings'],['log','User Log']]:[])];
+ $('#tabs').innerHTML=vis.map(([k,l])=>`<button class="tab" data-act="tab" data-tab="${k}">${l}</button>`).join('')||'<span class="mut">No access has been granted to this account. Please contact the administrator.</span>';
+ if(vis.length)show(vis[0][0]);else document.querySelectorAll('section').forEach(s=>s.hidden=true);
+ if(!started){started=true;const er=e=>msg('Storage error: '+(e.code||e.message)),mp=s=>s.docs.map(d=>({id:d.id,...d.data()}));
+  if(me.role==='admin'||me.allAcc!==false){
+   db.collection('accounts').onSnapshot(s=>{A=mp(s).sort((a,b)=>(a.order||0)-(b.order||0));render()},er);
+   db.collection('deposits').onSnapshot(s=>{D=mp(s);render()},er);db.collection('withdrawals').onSnapshot(s=>{W=mp(s);render()},er)}
+  else{const bA={},bD={},bW={},mg=()=>{A=Object.values(bA).filter(Boolean).sort((a,b)=>(a.order||0)-(b.order||0));D=Object.values(bD).flat();W=Object.values(bW).flat();render()};
+   for(const id of me.accIds||[]){db.collection('accounts').doc(id).onSnapshot(s=>{bA[id]=s.exists?{id:s.id,...s.data()}:null;mg()},er);
+    db.collection('deposits').where('accountId','==',id).onSnapshot(s=>{bD[id]=mp(s);mg()},er);db.collection('withdrawals').where('accountId','==',id).onSnapshot(s=>{bW[id]=mp(s);mg()},er)}}
+  if(me.role==='admin'){db.collection('logs').orderBy('ts','desc').limit(300).onSnapshot(s=>{LG=mp(s);render()},er);db.collection('users').onSnapshot(s=>{U=mp(s);render()},er)}}
+ render()}
+const okA=id=>me.role==='admin'||me.allAcc!==false||(me.accIds||[]).includes(id);
+let editU=null;
+const flat=x=>({name:x.name,role:x.jr,department:x.dept,bank_accounts:x.allAcc===false?(x.accIds||[]).map(accName).join(', '):'All',...Object.fromEntries(PK.map(([k])=>['access_'+k,(x.perms||{})[k]||'none']))});
+function closeU(){editU=null;$('#ov').hidden=true}
+function openU(id){const u=id?U.find(x=>x.id===id):null;if(id&&!u)return;editU=id||null;const pm=(u&&u.perms)||{},all=!u||u.allAcc!==false,ids=(u&&u.accIds)||[];
+ $('#mod').innerHTML=`<h3>${u?'Edit account':'Add account'}</h3><div class="frm"><label>Email / username<input id="mU" value="${E(u?u.username:'')}"${u?' disabled':''}></label><label>Name<input id="mN" value="${E(u?u.name:'')}"></label><label>Role<input id="mR" value="${E(u?u.jr:'')}" placeholder="e.g. Cashier"></label><label>Department<input id="mD" value="${E(u?u.dept:'')}"></label>${u?'':'<label>Password (min. 6 characters)<input id="mP" type="password" autocomplete="new-password"></label>'}</div>
+ <h3 style="margin-top:14px">Bank accounts this person can open</h3><div class="frm"><label class="ck"><input type="checkbox" id="mAll"${all?' checked':''}> All bank accounts</label>${A.map(a=>`<label class="ck"><input type="checkbox" class="mA" value="${E(a.id)}"${ids.includes(a.id)?' checked':''}> ${E(a.name)}</label>`).join('')}</div>
+ <h3 style="margin-top:14px">Access per tab</h3><div class="frm">${PK.map(([k,l])=>`<label>${l}<select id="mp_${k}">${['none','view','edit'].map(o=>`<option${o===(pm[k]||'none')?' selected':''}>${o}</option>`).join('')}</select></label>`).join('')}</div>
+ <p class="note">None = tab hidden · View = read only · Edit = can add, change, void and delete. Undeposited follows Deposits; Unreleased Cheques follows Withdrawals.</p>
+ <div class="frm" style="margin-top:12px"><button class="b" data-act="usave">Save</button><button class="x" data-act="ucancel">Cancel</button>${u?btn('ureset','users',u.id,'Send password reset email')+' '+(u.id===me.id?'':btn('utog','users',u.id,u.active===false?'Enable account':'Disable account')+' '+btn('del','users',u.id,'Delete','r')):''}</div>`;
+ $('#ov').hidden=false}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-act]');if(!b||/^(SELECT|INPUT)$/.test(b.tagName))return;const{act,col,id}=b.dataset;
+ try{
+ if(act==='tab')return show(b.dataset.tab);
+ if(act==='login')return login();
+ if(act==='out'){await log('Signed out');await auth.signOut();location.reload();return}
+ if(act==='uadd')return openU(null);
+ if(act==='uedit')return openU(id);
+ if(act==='ucancel')return closeU();
+ if(act==='usave'){const uid=editU,u=uid?U.find(x=>x.id===uid):null,un=u?u.username:val('mU').toLowerCase(),p=u?'':$('#mP').value;
+  if(!/^\S+@\S+\.\S+$/.test(un))return msg('Enter a valid email address.');
+  if(!u&&p.length<6)return msg('Password must be at least 6 characters.');
+  const perms={};for(const[k]of PK)perms[k]=val('mp_'+k);const allAcc=$('#mAll').checked,accIds=[...document.querySelectorAll('.mA:checked')].map(x=>x.value);
+  if(!allAcc&&!accIds.length)return msg('Tick at least one bank account, or choose All bank accounts.');
+  const d={name:val('mN')||un,jr:val('mR'),dept:val('mD'),perms,allAcc,accIds,upd:Date.now()};
+  if(u){await db.collection('users').doc(uid).update(d);log('Edited User',un+diff(flat(u),flat(d)))}
+  else{if(U.some(x=>x.username===un))return msg('That email is already used.');
+   sec=sec||firebase.initializeApp(FB,'sec');let nu;try{nu=await sec.auth().createUserWithEmailAndPassword(un,p)}catch(x){return msg('Could not create the account: '+x.code)}
+   await sec.auth().signOut();d.username=un;d.active=true;await db.collection('users').doc(nu.user.uid).set(d);log('Added User',un)}
+  closeU();msg('');return}
+ if(act==='save')return saveRow(col);
+ if(act==='cancel')return resetForm(col);
+ if(act==='edit'){const r=L(col).find(x=>x.id===id);if(!r)return;editing[col]=id;for(const[k]of SCH[col].f)$(`#${col}_${k}`).value=r[k]??'';
+  $(`#${col}_h`).textContent='Edit '+SCH[col].t;$(`#${col}_b`).textContent='Save changes';$(`#${col}_c`).hidden=false;$(`#${col}_h`).scrollIntoView({block:'center'});return}
+ if(act==='void'){const r=L(col).find(x=>x.id===id);if(!r)return;await db.collection(col).doc(id).update({void:!r.void});log(r.void?'Restored':'Voided',desc(col,r));return}
+ if(act==='del'){if(!b.dataset.arm){b.dataset.arm=1;b.textContent='Sure?';setTimeout(()=>{delete b.dataset.arm;b.textContent='Delete'},3000);return}
+  const r=col==='users'?U.find(x=>x.id===id)||{}:L(col).find(x=>x.id===id)||{};
+  if(col==='accounts'&&(D.some(x=>x.accountId===id)||W.some(x=>x.accountId===id)))return msg('This account has transactions and cannot be deleted.');
+  await db.collection(col).doc(id).delete();log('Deleted '+(col==='users'?'User':SCH[col].t),desc(col,r));if(col==='users')closeU();return}
+ if(act==='utog'){const u=U.find(x=>x.id===id);if(!u)return;await db.collection('users').doc(id).update({active:u.active===false});log(u.active===false?'Enabled User':'Disabled User',u.username);closeU();return}
+ if(act==='pw'){const p=$('#np').value;if(p.length<6)return msg('Password must be at least 6 characters.');
+  try{await auth.currentUser.updatePassword(p)}catch(x){return msg(x.code==='auth/requires-recent-login'?'For security, sign out, sign in again, then change your password.':'Could not update: '+x.code)}
+  log('Changed own password');$('#np').value='';msg('Password updated.');return}
+ if(act==='ureset'){const u=U.find(x=>x.id===id);if(!u)return;try{await auth.sendPasswordResetEmail(u.username);log('Sent password reset email',u.username);msg('Password reset email sent to '+u.username)}catch(x){msg('Could not send: '+x.code)}return}
+ }catch(x){msg('Could not save: '+(x.code||x.message))}});
+document.addEventListener('change',async e=>{const t=e.target,a=t.dataset.act;
+ try{
+ if(t.id==='fil'){fAcc=t.value;render()}else if(t.id==='rf'||t.id==='uf')render();
+ else if(a==='bank'&&ed('rec')){const r=L(t.dataset.col).find(x=>x.id===t.dataset.id)||{};await db.collection(t.dataset.col).doc(t.dataset.id).update({bankDate:t.value});log(t.value?'Reconciled':'Un-reconciled',desc(t.dataset.col,r)+(t.value?' → bank date '+t.value:''))}
+ else if(a==='setd'&&t.value&&ed(t.dataset.col==='deposits'?'dep':'wd')){const c=t.dataset.col,r=L(c).find(x=>x.id===t.dataset.id)||{};await db.collection(c).doc(t.dataset.id).update({[t.dataset.f]:t.value});log(c==='deposits'?'Marked deposited':'Marked released',desc(c,r)+' → '+t.value)}
+ else if(a==='perm'&&me.role==='admin'){const u=U.find(x=>x.id===t.dataset.id);if(!u)return;await db.collection('users').doc(u.id).update({perms:{...(u.perms||{}),[t.dataset.k]:t.value}});log('Changed access',`${u.username}: ${t.dataset.k} = ${t.value}`)}
+ }catch(x){msg('Could not save: '+(x.code||x.message))}});
+$('#lp').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+(async()=>{
+ if(!window.firebase||String(FB.apiKey).startsWith('PASTE')){$('#login').innerHTML='<h3>Setup needed</h3><p class="mut">Paste your Firebase web app config into FB at the top of the script (see the setup steps).</p>';return}
+ firebase.initializeApp(FB);const raw=firebase.firestore();auth=firebase.auth();
+ db={collection:n=>raw.collection('cash_'+n),doc:p=>raw.doc('cash_'+p)};
+ auth.onAuthStateChanged(async u=>{if(!u)return;
+  try{const sn=await db.collection('users').doc(u.uid).get(),d=sn.exists?sn.data():null;
+   if(!d||d.active===false){await auth.signOut();return msg('This account has no access. Please contact the administrator.')}
+   const f=justIn;justIn=false;enter({...d,id:u.uid,username:u.email,role:d.admin?'admin':'user'},f)}
+  catch(e){await auth.signOut();msg('Could not load your profile: '+(e.code||e.message))}});
+})();
+</script></body></html>
