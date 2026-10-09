@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check-compat.js"></script>
 <style>
@@ -182,7 +183,7 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
 function toast(msg,err){const t=document.createElement('div');t.className='t'+(err?' err':'');t.textContent=msg;$('#toast').appendChild(t);setTimeout(()=>t.remove(),err?6000:3200)}
 function errMsg(e){
   const c=String(e&&e.code||'');
-  if(c.includes('permission'))return 'Firestore refused the request (permission denied). Check the cash_* Firestore rules, and if App Check is enforced, that this page has the right reCAPTCHA site key.';
+  if(c.includes('permission'))return 'Not allowed: your role cannot do this, or your session ended. Sign in again. If it keeps happening, check the cash_* Firestore rules.';
   if(c.includes('unavailable')||c.includes('failed-precondition')&&/offline/i.test(e.message||''))return 'No connection to the database. Check the internet and try again.';
   return (e&&e.message)||String(e);
 }
@@ -201,7 +202,7 @@ function makeRemote(){
     catch(e){console.error('App Check could not start',e)}
   }
   const db=firebase.firestore();
-  try{db.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}
+  /* No offline cache: nothing stays in the browser after signing out (safer on shared PCs). */
   const q=(col,where=[],o={})=>{let r=db.collection(col);for(const w of where)r=r.where(w[0],w[1],w[2]);if(o.orderBy)r=r.orderBy(o.orderBy[0],o.orderBy[1]||'asc');if(o.limit)r=r.limit(o.limit);return r};
   const wrap=s=>s.exists?{...s.data(),id:s.id}:null;
   return {
@@ -257,23 +258,60 @@ function makeLocal(){
 }
 let Store;
 
-/* ================= Passwords (salted PBKDF2-SHA256; the password itself is never stored) ================= */
-const ITER=210000, enc=new TextEncoder();
-const b64=buf=>{let s='';const a=new Uint8Array(buf);for(let i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s)};
-const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
-async function pbkdf2(pw,salt,iter){const k=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveBits']);
-  return b64(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:unb64(salt),iterations:iter},k,256))}
-async function makeHash(pw){const salt=b64(crypto.getRandomValues(new Uint8Array(16)));return{salt,iter:ITER,hash:await pbkdf2(pw,salt,ITER)}}
-const ctEq=(a,b)=>{if(!a||!b||a.length!==b.length)return false;let r=0;for(let i=0;i<a.length;i++)r|=a.charCodeAt(i)^b.charCodeAt(i);return r===0};
-const userId=u=>String(u||'').trim().toLowerCase().replace(/[^a-z0-9_\-.@+]/g,'_');
+/* ================= Sign-in: Firebase Authentication (email + password) =================
+   Firebase checks the password. The Firestore rules then check the user's profile in cash_users/{uid}
+   (role, active, bank accounts), so the data cannot be read or changed without signing in,
+   even by someone who bypasses this page. */
+let Auth;
+const IDLE_MS=30*60*1000;
 function tempPassword(){const A='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';const r=crypto.getRandomValues(new Uint8Array(10));return Array.from(r,x=>A[x%A.length]).join('')}
-const SESSION_KEY='ct-session',LOCK_KEY='ct-lock',IDLE_MS=30*60*1000,MAX_TRIES=5,LOCK_MS=5*60*1000;
-const sessGet=()=>{try{const v=JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');return v&&v.exp>Date.now()?v:null}catch(e){return null}};
-const sessSet=(u,hs)=>{try{sessionStorage.setItem(SESSION_KEY,JSON.stringify({u,hs,exp:Date.now()+IDLE_MS}))}catch(e){}};
-const sessClear=()=>{try{sessionStorage.removeItem(SESSION_KEY)}catch(e){}};
-const lockGet=()=>{try{return JSON.parse(localStorage.getItem(LOCK_KEY)||'{}')||{}}catch(e){return{}}};
-const lockSet=v=>{try{localStorage.setItem(LOCK_KEY,JSON.stringify(v))}catch(e){}};
-const hashSig=u=>String(u&&u.hash||'').slice(0,16);
+const isEmail=e=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e||'').trim());
+function authMsg(e){const c=String(e&&e.code||'');
+  if(/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c))return 'Incorrect email or password.';
+  if(c.includes('too-many-requests'))return 'Too many attempts. Wait a few minutes, or use "Forgot password".';
+  if(c.includes('user-disabled'))return 'This login is disabled in Firebase Authentication.';
+  if(c.includes('email-already-in-use'))return 'That email already has a login.';
+  if(c.includes('invalid-email'))return 'Enter a valid email address.';
+  if(c.includes('weak-password'))return 'Use a stronger password (at least 8 characters).';
+  if(c.includes('network'))return 'No internet connection.';
+  if(c.includes('operation-not-allowed'))return 'Email/password sign-in is turned off. Turn it on in Firebase → Authentication → Sign-in method.';
+  if(c.includes('requires-recent-login'))return 'For security, sign out and sign in again, then retry.';
+  return errMsg(e)}
+function makeRemoteAuth(){
+  const auth=firebase.auth();
+  auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(()=>{});
+  let sec=null;
+  const secondary=()=>{if(!sec){sec=firebase.initializeApp(FIREBASE_CONFIG,'userCreate').auth();sec.setPersistence(firebase.auth.Auth.Persistence.NONE).catch(()=>{})}return sec};
+  return {
+    onChange(cb){return auth.onAuthStateChanged(u=>cb(u?{uid:u.uid,email:u.email}:null))},
+    async signIn(email,pw){const r=await auth.signInWithEmailAndPassword(email,pw);return{uid:r.user.uid,email:r.user.email}},
+    async create(email,pw){const r=await auth.createUserWithEmailAndPassword(email,pw);return{uid:r.user.uid,email:r.user.email}},
+    /* creates another person's login without signing the administrator out */
+    async createOther(email,pw){const a=secondary();const r=await a.createUserWithEmailAndPassword(email,pw);const uid=r.user.uid;await a.signOut();return uid},
+    signOut(){return auth.signOut()},
+    async setPassword(pw){await auth.currentUser.updatePassword(pw)},
+    async changePassword(cur,pw){const u=auth.currentUser;await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email,cur));await u.updatePassword(pw)},
+    sendReset(email){return auth.sendPasswordResetEmail(email)}
+  };
+}
+function makeLocalAuth(){ /* demo mode only — stands in for Firebase Authentication inside this browser */
+  const KEY='cash-tracker-demo-auth';let db={};try{db=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){}
+  const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}};
+  let cur=null;try{cur=JSON.parse(sessionStorage.getItem(KEY)||'null')}catch(e){}
+  const subs=new Set(),err=c=>Object.assign(new Error(c),{code:'auth/'+c}),norm=e=>String(e||'').trim().toLowerCase();
+  const setCur=u=>{cur=u;try{sessionStorage.setItem(KEY,JSON.stringify(u))}catch(e){}subs.forEach(f=>f(cur))};
+  const mk=(e,pw)=>{if(db[e])throw err('email-already-in-use');if(String(pw).length<6)throw err('weak-password');db[e]={uid:'u'+Math.random().toString(36).slice(2,12),pw};save();return db[e].uid};
+  return {
+    onChange(cb){subs.add(cb);setTimeout(()=>cb(cur),0);return()=>subs.delete(cb)},
+    async signIn(email,pw){const a=db[norm(email)];if(!a||a.pw!==pw)throw err('invalid-credential');setCur({uid:a.uid,email:norm(email)});return cur},
+    async create(email,pw){const e=norm(email),uid=mk(e,pw);setCur({uid,email:e});return cur},
+    async createOther(email,pw){return mk(norm(email),pw)},
+    async signOut(){setCur(null)},
+    async setPassword(pw){db[cur.email].pw=pw;save()},
+    async changePassword(c,pw){if(db[cur.email].pw!==c)throw err('invalid-credential');db[cur.email].pw=pw;save()},
+    async sendReset(email){console.log('[demo] password reset email to',email)}
+  };
+}
 
 /* ================= State ================= */
 const S={
@@ -341,41 +379,50 @@ async function commit(changes,audit){
     if(audit)t.set(C.audit+'/'+Store.newId(C.audit),{at:nowISO(),by:S.user.id,by_name:S.user.name,ref:changes[0]&&changes[0].id||'',...audit});
   });
 }
-function logAudit(action,summary,ref){if(!S.user)return;Store.set(C.audit+'/'+Store.newId(C.audit),{at:nowISO(),by:S.user.id,by_name:S.user.name,action,summary,ref:ref||''}).catch(()=>{})}
-const stamp=()=>({updated_at:nowISO(),updated_by:S.user.name});
+function logAudit(action,summary,ref){if(!S.user)return Promise.resolve();return Store.set(C.audit+'/'+Store.newId(C.audit),{at:nowISO(),by:S.user.id,by_name:S.user.name,action,summary,ref:ref||''}).catch(()=>{})}
+const stamp=()=>({updated_at:nowISO(),updated_by:S.user.name,updated_uid:S.user.id});
 
 /* ================= Sign-in ================= */
-async function adminExists(){const rows=await Store.query(C.users,[['role','==','ADMIN']]);return rows.some(u=>u.hash&&u.salt&&u.active!==false)}
-async function signIn(username,pw){
-  const lk=lockGet();
-  if(lk.until&&lk.until>Date.now())throw new Error(`Too many attempts. Try again in ${Math.ceil((lk.until-Date.now())/60000)} minute(s).`);
-  const id=userId(username);let u=null;
-  if(id){try{u=await Store.getServer(C.users+'/'+id)}catch(e){if(String(e.code||'').includes('permission'))throw new Error(errMsg(e));try{u=await Store.get(C.users+'/'+id)}catch(e2){throw new Error(errMsg(e))}}}
-  let ok=false;
-  if(u&&u.hash&&u.salt)ok=ctEq(await pbkdf2(pw,u.salt,u.iter||ITER),u.hash);else await pbkdf2(pw,'AAAAAAAAAAAAAAAAAAAAAA==',20000);
-  if(!ok||u.active===false){
-    if(ok&&u.active===false)throw new Error('This user is deactivated. Ask the administrator.');
-    const tries=(lk.tries||0)+1;
-    if(tries>=MAX_TRIES){lockSet({tries:0,until:Date.now()+LOCK_MS});throw new Error('Too many attempts. Sign-in is paused for 5 minutes.')}
-    lockSet({tries});throw new Error(`Incorrect username or password. ${MAX_TRIES-tries} attempt(s) left.`);
+async function setupNeeded(){try{return !(await Store.get(C.settings+'/admin_lock'))}catch(e){return false}}
+async function loadProfile(au){
+  const p=await Store.get(C.users+'/'+au.uid);
+  if(!p||!p.role||p.hash||p.active===false){
+    await Auth.signOut();
+    throw new Error(!p||!p.role||p.hash?'This login has no access to the Cash Tracker yet. Ask the administrator to add you in Users.':'Your access is deactivated. Ask the administrator.');
   }
-  lockSet({});
-  S.user={...u,id};sessSet(id,hashSig(u));
-  Store.update(C.users+'/'+id,{last_login:nowISO()}).catch(()=>{});
-  logAudit('SIGN_IN','Signed in',id);
-  afterSignIn();
+  return {...p,id:au.uid,email:au.email||p.email};
+}
+async function showLogin(){S.phase=(await setupNeeded())?'setup':'login';render()}
+function onAuth(au){
+  if(S.settingUp)return;
+  if(!au){if(S.user){stopData();S.user=null;closeDlg()}showLogin();return}
+  if(S.user&&S.user.id===au.uid)return;
+  loadProfile(au).then(p=>{
+    S.user=p;S.loginNote='';
+    Store.update(C.users+'/'+p.id,{last_login:nowISO()}).catch(()=>{});
+    if(S.justSignedIn){logAudit('SIGN_IN','Signed in',p.id);S.justSignedIn=false}
+    afterSignIn();
+  }).catch(e=>{S.loginNote=errMsg(e);showLogin()});
+}
+async function signIn(email,pw){
+  S.justSignedIn=true;
+  try{await Auth.signIn(email.trim(),pw)}catch(e){S.justSignedIn=false;throw new Error(authMsg(e))}
 }
 function afterSignIn(){if(S.user.must_change){S.phase='mustchange';render();return}S.phase='app';startData();route();}
-async function resume(){
-  const s=sessGet();if(!s)return false;
-  try{const u=await Store.get(C.users+'/'+s.u);if(!u||u.active===false||hashSig(u)!==s.hs){sessClear();return false}S.user={...u,id:s.u};afterSignIn();return true}catch(e){return false}
+async function signOut(msg){
+  if(S.user&&!msg)await Promise.race([logAudit('SIGN_OUT','Signed out',S.user.id),sleep(1500)]);
+  stopData();S.user=null;closeDlg();
+  await Auth.signOut().catch(()=>{});
+  if(msg){S.loginNote='';toast(msg)}
 }
-function signOut(msg){
-  if(S.user&&!msg)logAudit('SIGN_OUT','Signed out',S.user.id);
-  stopData();sessClear();S.user=null;S.phase='login';closeDlg();render();if(msg)toast(msg);
+async function forgotPassword(email){
+  email=String(email||'').trim();
+  if(!isEmail(email))return toast('Type your email address first, then click "Forgot password".',true);
+  try{await Auth.sendReset(email)}catch(e){if(String(e.code||'').includes('invalid-email'))return toast(authMsg(e),true)}
+  toast('If that email has a login, a link to reset the password was sent. Check the inbox and spam folder.');
 }
 let lastActive=Date.now();
-['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>{lastActive=Date.now();if(S.user)sessSet(S.user.id,hashSig(S.user))},{passive:true}));
+['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>{lastActive=Date.now()},{passive:true}));
 setInterval(()=>{if(S.user&&Date.now()-lastActive>IDLE_MS)signOut('Signed out after 30 minutes of inactivity.')},30000);
 
 /* ================= Live data ================= */
@@ -389,9 +436,8 @@ function startData(){
   sub.particulars=Store.listenDoc(C.settings+'/particulars',d=>{S.lists.particulars=(d?d.names||[]:DEFAULT_PARTICULARS).slice().sort((a,b)=>a.localeCompare(b));S.lists.partDoc=!!d;if(S.route==='banks')schedule()},()=>{});
   sub.me=Store.listenDoc(C.users+'/'+S.user.id,d=>{
     if(!S.user)return;
-    if(!d||d.active===false)return signOut('Your access was removed or deactivated.');
-    if(hashSig(d)!==hashSig(S.user))return signOut('Your password was changed. Please sign in again.');
-    const roleChanged=d.role!==S.user.role;S.user={...d,id:S.user.id};if(roleChanged)startAdmin();if(!canTab(S.route))route();else schedule();
+    if(!d||!d.role||d.active===false)return signOut('Your access was removed or deactivated.');
+    const roleChanged=d.role!==S.user.role;S.user={...d,id:S.user.id,email:S.user.email};if(roleChanged)startAdmin();if(!canTab(S.route))route();else schedule();
   },()=>{});
   startAdmin();
 }
@@ -441,8 +487,8 @@ function vHeader(){
     <div class="brand">${h(S.settings.org||'')} <small>Cash Tracker</small></div><span class="spacer"></span>
     <span class="live" title="${S.online?'Connected — changes from other users appear instantly':'Offline — showing the last saved data'}"><span class="dot ${S.online?'':'off'}"></span>${S.online?'Live':'Offline'}</span>
     ${['cheque','deposit','debit'].some(kindAllowed)?'<button class="btn primary" data-act="new">+ New entry</button>':''}
-    <div class="menu" id="umenu"><button class="btn" data-act="menu" aria-haspopup="true">${h((S.user.name||S.user.username||'').split(' ')[0])} ▾</button>
-      <div class="pop"><div class="who"><b>${h(S.user.name||'')}</b><br>${h(S.user.username||S.user.id)} · ${ROLES[S.user.role]||S.user.role}</div>
+    <div class="menu" id="umenu"><button class="btn" data-act="menu" aria-haspopup="true">${h((S.user.name||S.user.email||'').split(' ')[0])} ▾</button>
+      <div class="pop"><div class="who"><b>${h(S.user.name||'')}</b><br>${h(S.user.email||'')} · ${ROLES[S.user.role]||S.user.role}</div>
       <button data-act="myPw">Change my password</button><button data-act="signOut">Sign out</button></div></div>
   </div><nav class="tabs">${NAV.filter(n=>canTab(n[0])).map(([k,l])=>`<a href="#${k}" class="${S.route===k?'on':''}">${l}${badge[k]?`<span class="badge">${badge[k]}</span>`:''}</a>`).join('')}</nav></header>`;
 }
@@ -470,21 +516,21 @@ function vLogin(){
   const setup=S.phase==='setup';
   return `<div class="login"><div class="panel">
     <h1>${setup?'Set up the Cash Tracker':'Cash Tracker'}</h1>
-    <p class="muted" style="margin-top:0">${setup?'No administrator exists yet. Create the first administrator account. You can add other users after signing in.':'Sign in to continue.'}</p>
+    <p class="muted" style="margin-top:0">${setup?'Create the administrator login. Use an email address you can receive — password-reset links are sent there.':'Sign in with your email and password.'}</p>
     ${S.loginNote?`<div class="note bad">${h(S.loginNote)}</div>`:''}
     <form id="${setup?'fSetup':'fLogin'}" class="stack" autocomplete="on">
       ${setup?`<label class="f">Full name<input type="text" name="name" required value="Administrator"></label>`:''}
-      <label class="f">Username or email<input type="text" name="username" required autocomplete="username" value="${setup?'administrator@cash.prime':h(S.loginUser||'')}" ${setup?'':'autofocus'}></label>
-      <label class="f">Password<input type="password" name="pw" required autocomplete="${setup?'new-password':'current-password'}" minlength="${setup?8:1}"></label>
+      <label class="f">Email<input type="email" name="email" id="loginEmail" required autocomplete="username" value="${h(S.loginUser||'')}" autofocus></label>
+      <label class="f">Password${setup?' (at least 8 characters)':''}<input type="password" name="pw" required autocomplete="${setup?'new-password':'current-password'}" minlength="${setup?8:1}"></label>
       ${setup?'<label class="f">Confirm password<input type="password" name="pw2" required autocomplete="new-password" minlength="8"></label>':''}
       <button class="btn primary" type="submit">${setup?'Create administrator':'Sign in'}</button>
     </form>
-    ${setup?'':'<p class="muted small" style="margin-bottom:0">Forgot your password? Ask the administrator to reset it in Users.</p>'}
+    ${setup?'':'<p style="margin-bottom:0"><button class="btn ghost small" data-act="forgot" style="padding:0;color:var(--accent)">Forgot password?</button></p>'}
   </div></div>`;
 }
 function vMustChange(){
   return `<div class="login"><div class="panel"><h1>Set your own password</h1>
-  <p class="muted" style="margin-top:0">You signed in with a temporary password. Choose a new one (at least 8 characters) to continue.</p>
+  <p class="muted" style="margin-top:0">You signed in with a temporary password. Choose your own (at least 8 characters) to continue.</p>
   <form id="fMust" class="stack"><label class="f">New password<input type="password" name="pw" minlength="8" required autocomplete="new-password" autofocus></label>
   <label class="f">Confirm new password<input type="password" name="pw2" minlength="8" required autocomplete="new-password"></label>
   <button class="btn primary" type="submit">Save and continue</button><button class="btn" type="button" data-act="signOut">Sign out</button></form></div></div>`;
@@ -754,22 +800,22 @@ async function recalc(silentFix){
 }
 
 /* ---------- Users (admin) ---------- */
+const isProfile=u=>!!u.role&&!u.hash&&!String(u.id).includes('@');
 function vUsers(){
-  const users=S.users;
-  const ok=users.filter(u=>u.hash&&u.salt),old=users.filter(u=>!(u.hash&&u.salt));
+  const users=S.users,ok=users.filter(isProfile),old=users.filter(u=>!isProfile(u));
   return `<div class="panel">
   <div class="row" style="margin-bottom:12px"><h1 style="margin:0">Users</h1><span class="spacer"></span><button class="btn primary" data-act="userNew">+ Add user</button></div>
-  <p class="muted small" style="margin-top:0"><b>Administrator</b>: everything, incl. bank accounts and users. <b>Encoder</b>: add, edit, release, deposit and void entries. <b>Viewer</b>: view and export only.</p>
-  <div class="tablewrap"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Bank accounts</th><th>Tabs</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>
-  ${ok.map(u=>`<tr><td class="b">${h(u.name)}${u.id===S.user.id?' <span class="pill p-info">you</span>':''}</td><td>${h(u.username||u.id)}</td><td>${ROLES[u.role]||h(u.role)}</td>
+  <p class="muted small" style="margin-top:0"><b>Administrator</b>: everything, incl. bank accounts and users. <b>Encoder</b>: add, edit, release, deposit and void entries. <b>Viewer</b>: view and export only. Roles and bank-account limits on saving are enforced by the database itself.</p>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Bank accounts</th><th>Tabs</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>
+  ${ok.map(u=>`<tr><td class="b">${h(u.name)}${u.id===S.user.id?' <span class="pill p-info">you</span>':''}</td><td>${h(u.email||'')}</td><td>${ROLES[u.role]||h(u.role)}</td>
   <td class="small">${u.role==='ADMIN'||!Array.isArray(u.banks)?'All':u.banks.map(bankName).map(h).join(', ')||'None'}</td>
   <td class="small">${u.role==='ADMIN'?'All':(tabsOf(u).length?USER_TABS.filter(t=>tabsOf(u).includes(t[0])).map(t=>t[1]).join(', '):'<span class="neg">None</span>')}</td>
   <td>${u.active===false?'<span class="pill p-mute">Deactivated</span>':u.must_change?'<span class="pill p-warn">Temporary password</span>':'<span class="pill p-ok">Active</span>'}</td>
   <td class="small">${fdt(u.last_login)||'—'}</td>
   <td class="row" style="flex-wrap:nowrap"><button class="btn sm" data-act="userEdit" data-id="${u.id}">Edit</button><button class="btn sm" data-act="userReset" data-id="${u.id}">Reset password</button></td></tr>`).join('')}
   </tbody></table></div></div>
-  ${old.length?`<div class="panel"><h2>Old records from the previous tracker</h2><p class="muted small" style="margin-top:0">These ${old.length} record(s) in cash_users have no password for this tracker and cannot sign in. Delete them, or re-add the person with "Add user".</p>
-  <div class="tablewrap"><table><thead><tr><th>Name</th><th>Username</th><th>Document id</th><th></th></tr></thead><tbody>${old.map(u=>`<tr><td>${h(u.name||'')}</td><td>${h(u.username||u.email||'')}</td><td class="small muted">${h(u.id)}</td><td><button class="btn sm danger" data-act="userDelOld" data-id="${u.id}">Delete</button></td></tr>`).join('')}</tbody></table></div></div>`:''}`;
+  ${old.length?`<div class="panel"><h2>Old user records · ${old.length}</h2><p class="muted small" style="margin-top:0">Left over from earlier versions of the tracker. They cannot sign in to this version. Delete them, and add the people again with "Add user".</p>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>Username / email</th><th>Record id</th><th></th></tr></thead><tbody>${old.map(u=>`<tr><td>${h(u.name||'')}</td><td>${h(u.username||u.email||'')}</td><td class="small muted">${h(u.id)}</td><td>${u.id===S.user.id?'':`<button class="btn sm danger" data-act="userDelOld" data-id="${u.id}">Delete</button>`}</td></tr>`).join('')}</tbody></table></div></div>`:''}`;
 }
 function bankChecks(sel){
   const all=!Array.isArray(sel);
@@ -780,7 +826,7 @@ function dlgUser(u){
   const n=!u;u=u||{role:'ENCODER',active:true,banks:null};const pw=n?tempPassword():'';
   openDlg(`<h2>${n?'Add user':'Edit user'}</h2><form id="fUser" class="stack">
   <div class="grid2"><label class="f">Full name<input type="text" name="name" required value="${h(u.name)}"></label>
-  <label class="f">Username or email<input type="text" name="username" required value="${h(u.username||'')}" ${n?'':'readonly'} autocomplete="off"></label>
+  <label class="f">Email (used to sign in)<input type="email" name="email" required value="${h(u.email||'')}" ${n?'':'readonly'} autocomplete="off"></label>
   <label class="f">Role<select name="role">${Object.entries(ROLES).map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select></label>
   ${n?`<label class="f">Temporary password<input type="text" name="pw" required minlength="8" value="${pw}" autocomplete="off"></label>`:`<label class="chk" style="align-self:end"><input type="checkbox" name="active" ${u.active!==false?'checked':''} ${u.id===S.user.id?'disabled':''}> Active (can sign in)</label>`}</div>
   <div><div class="small muted b" style="margin-bottom:6px">Bank accounts this user can see (administrators see all)</div>${bankChecks(u.banks)}</div>
@@ -788,65 +834,62 @@ function dlgUser(u){
     <div class="grid2" style="gap:6px">${USER_TABS.map(([k,l])=>`<label class="chk"><input type="checkbox" name="tab_${k}" ${tabsOf({...u,role:''}).includes(k)?'checked':''}> ${l}</label>`).join('')}</div>
     <p class="muted small" style="margin:6px 0 0">Bank accounts and Users are for administrators only. Encoders can add only the entry types of their tabs: Unreleased cheques → cheques, Undeposited → collections, Bank ledger → debits, credits and transfers (All entries → every type).</p></div>
   <div id="tabAdminNote" class="muted small" style="${u.role==='ADMIN'?'':'display:none'}">Administrators can open every tab.</div>
-  ${n?'<p class="muted small" style="margin:0">Give the temporary password to the user. They will be asked to choose their own password at first sign-in.</p>':''}
+  ${n?'<label class="chk"><input type="checkbox" name="sendLink" checked> Also email them a link to set their own password</label><p class="muted small" style="margin:0">Use a real email address so the user can reset a forgotten password. They will be asked to choose their own password at first sign-in.</p>':''}
   <div class="acts">${!n&&u.id!==S.user.id?'<button type="button" class="btn danger" data-act="userDel" style="margin-right:auto">Delete user</button>':''}<button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>`,{user:u,isNew:n});
 }
 function readBanks(f){if(f.allBanks)return null;return S.banks.filter(b=>f['bk_'+b.id]).map(b=>b.id)}
-function activeAdmins(exceptId){return S.users.filter(u=>u.role==='ADMIN'&&u.active!==false&&u.hash&&u.id!==exceptId).length}
+function activeAdmins(exceptId){return S.users.filter(u=>isProfile(u)&&u.role==='ADMIN'&&u.active!==false&&u.id!==exceptId).length}
 async function saveUser(f){
   const d=S.dlg,name=f.name.trim(),role=f.role,banks=readBanks(f);
   const tabs=role==='ADMIN'?null:USER_TABS.filter(t=>f['tab_'+t[0]]).map(t=>t[0]);
-  if(tabs&&!tabs.length&&!confirm('This user will not be able to open any tab. Continue?'))return;
   if(!name)return toast('Enter the name.',true);
+  if(tabs&&!tabs.length&&!confirm('This user will not be able to open any tab. Continue?'))return;
   try{
     if(d.isNew){
-      const username=f.username.trim(),id=userId(username);
-      if(!id)return toast('Enter a username.',true);
+      const email=String(f.email||'').trim().toLowerCase();
+      if(!isEmail(email))return toast('Enter a valid email address.',true);
       if((f.pw||'').length<8)return toast('The temporary password needs at least 8 characters.',true);
-      if(await Store.get(C.users+'/'+id))return toast('That username is already taken.',true);
-      const hs=await makeHash(f.pw);
-      await Store.set(C.users+'/'+id,{username,name,role,banks,tabs,active:true,must_change:true,...hs,created_at:nowISO(),created_by:S.user.name,pw_set_at:nowISO(),pw_set_by:S.user.name});
-      logAudit('USER_ADD',`Added user ${name} (${username}) as ${ROLES[role]}`,id);
-      closeDlg();showPassword(name,username,f.pw);
+      if(S.users.some(u=>isProfile(u)&&String(u.email||'').toLowerCase()===email))return toast('That email is already a user.',true);
+      let uid;
+      try{uid=await Auth.createOther(email,f.pw)}
+      catch(e){return toast(authMsg(e)+(String(e.code||'').includes('email-already-in-use')?' It may be from the old tracker: use another email, or delete that login first in Firebase → Authentication → Users.':''),true)}
+      await Store.set(C.users+'/'+uid,{email,name,role,banks,tabs,active:true,must_change:true,created_at:nowISO(),created_by:S.user.name,created_by_uid:S.user.id});
+      let sent=false;if(f.sendLink){try{await Auth.sendReset(email);sent=true}catch(e){}}
+      logAudit('USER_ADD',`Added user ${name} (${email}) as ${ROLES[role]}`,uid);
+      closeDlg();showPassword(name,email,f.pw,sent);
     }else{
       const u=d.user,active=u.id===S.user.id?true:!!f.active;
       if(u.role==='ADMIN'&&(role!=='ADMIN'||!active)&&!activeAdmins(u.id))return toast('Keep at least one active administrator.',true);
       if(u.id===S.user.id&&role!=='ADMIN')return toast('You cannot remove your own administrator role.',true);
       await Store.update(C.users+'/'+u.id,{name,role,banks,tabs,active,...stamp()});
       logAudit('USER_EDIT',`Edited user ${name}: ${ROLES[role]}, ${active?'active':'deactivated'}`,u.id);
-      closeDlg();toast('User saved.');
+      closeDlg();toast(active||u.active===false?'User saved.':'User deactivated — they are signed out and blocked right away.');
     }
   }catch(e){toast(errMsg(e),true)}
 }
 function dlgReset(u){
   openDlg(`<h2>Reset password</h2><form id="fReset" class="stack">
-  <p style="margin:0">Set a new password for <b>${h(u.name)}</b> (${h(u.username||u.id)}). Their current password stops working right away and they are signed out on every device.</p>
-  <label class="f">New password<input type="text" name="pw" required minlength="8" value="${tempPassword()}" autocomplete="off"></label>
-  <label class="chk"><input type="checkbox" name="must" checked> Ask them to choose their own password at next sign-in</label>
-  <div class="acts"><button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary" type="submit">Reset password</button></div></form>`,{user:u});
+  <p style="margin:0">Firebase will email <b>${h(u.email||'')}</b> a link to choose a new password for <b>${h(u.name)}</b>.</p>
+  <p class="muted small" style="margin:0">Their current password keeps working until they use the link. To block someone right away, use <b>Edit → untick Active</b> instead.<br>
+  If this address cannot receive email, deactivate this user and add them again with a real email address.</p>
+  <div class="acts"><button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary" type="submit">Send reset email</button></div></form>`,{user:u});
 }
-async function saveReset(f){
+async function saveReset(){
   const u=S.dlg.user;
-  if((f.pw||'').length<8)return toast('The password needs at least 8 characters.',true);
-  try{
-    const hs=await makeHash(f.pw);
-    await Store.update(C.users+'/'+u.id,{...hs,must_change:!!f.must,pw_set_at:nowISO(),pw_set_by:S.user.name});
-    logAudit('USER_RESET_PW',`Reset the password of ${u.name} (${u.username||u.id})`,u.id);
-    if(u.id===S.user.id){closeDlg();return}
-    closeDlg();showPassword(u.name,u.username||u.id,f.pw);
-  }catch(e){toast(errMsg(e),true)}
+  try{await Auth.sendReset(u.email);logAudit('USER_RESET_PW',`Sent a password-reset email to ${u.name} (${u.email})`,u.id);closeDlg();toast(`Reset link sent to ${u.email}.`)}
+  catch(e){toast(authMsg(e),true)}
 }
-function showPassword(name,username,pw){
-  openDlg(`<h2>Password ready</h2><p>Give these to <b>${h(name)}</b>. The password is shown only now; it is not stored anywhere readable.</p>
-  <div class="stack"><div><div class="small muted">Username</div><div class="mono">${h(username)}</div></div><div><div class="small muted">Password</div><div class="mono">${h(pw)}</div></div></div>
-  <div class="acts"><button class="btn" data-act="copyPw" data-pw="${h(username+'  /  '+pw)}">Copy</button><button class="btn primary" data-act="close">Done</button></div>`);
+function showPassword(name,email,pw,sent){
+  openDlg(`<h2>User added</h2><p>Give these to <b>${h(name)}</b>. The password is shown only now.${sent?` A link to set their own password was also emailed to ${h(email)}.`:''}</p>
+  <div class="stack"><div><div class="small muted">Email</div><div class="mono">${h(email)}</div></div><div><div class="small muted">Temporary password</div><div class="mono">${h(pw)}</div></div></div>
+  <div class="acts"><button class="btn" data-act="copyPw" data-pw="${h(email+'  /  '+pw)}">Copy</button><button class="btn primary" data-act="close">Done</button></div>`);
 }
 async function deleteUser(id,old){
   const u=S.users.find(x=>x.id===id);if(!u)return;
   if(id===S.user.id)return toast('You cannot delete yourself.',true);
   if(!old&&u.role==='ADMIN'&&!activeAdmins(id))return toast('Keep at least one active administrator.',true);
-  if(!confirm(`Delete ${old?'the old record':'user'} ${u.name||u.username||id}? This cannot be undone.`))return;
-  try{await Store.del(C.users+'/'+id);logAudit('USER_DELETE',`Deleted ${old?'old record':'user'} ${u.name||''} (${u.username||id})`,id);closeDlg();toast('Deleted.')}catch(e){toast(errMsg(e),true)}
+  if(!confirm(old?`Delete the old record ${u.name||u.username||id}?`:`Delete user ${u.name}? They lose access right away. (Their email login stays in Firebase → Authentication, where you can delete it too.)`))return;
+  try{await Store.del(C.users+'/'+id);logAudit('USER_DELETE',`Deleted ${old?'old record':'user'} ${u.name||''} (${u.email||u.username||id})`,id);closeDlg();toast('Deleted.')}catch(e){toast(errMsg(e),true)}
 }
 function dlgMyPw(){
   openDlg(`<h2>Change my password</h2><form id="fMyPw" class="stack">
@@ -859,15 +902,13 @@ async function setOwnPassword(pw,pw2,cur){
   if(pw.length<8)return toast('Use at least 8 characters.',true);
   if(pw!==pw2)return toast('The two passwords do not match.',true);
   try{
-    const u=await Store.getServer(C.users+'/'+S.user.id);
-    if(cur!=null&&!ctEq(await pbkdf2(cur,u.salt,u.iter||ITER),u.hash))return toast('Current password is incorrect.',true);
-    const hs=await makeHash(pw);
-    S.user={...S.user,...hs,must_change:false};sessSet(S.user.id,hashSig(S.user));
-    await Store.update(C.users+'/'+S.user.id,{...hs,must_change:false,pw_set_at:nowISO(),pw_set_by:S.user.name});
-    logAudit('PW_CHANGE','Changed own password',S.user.id);
-    closeDlg();toast('Password changed.');
-    if(S.phase==='mustchange'){S.phase='app';startData();route()}
-  }catch(e){toast(errMsg(e),true)}
+    if(cur!=null)await Auth.changePassword(cur,pw);else await Auth.setPassword(pw);
+  }catch(e){return toast(String(e.code||'').match(/invalid-credential|wrong-password/)?'Current password is incorrect.':authMsg(e),true)}
+  try{await Store.update(C.users+'/'+S.user.id,{must_change:false,pw_set_at:nowISO()})}catch(e){}
+  S.user={...S.user,must_change:false};
+  logAudit('PW_CHANGE','Changed own password',S.user.id);
+  closeDlg();toast('Password changed.');
+  if(S.phase==='mustchange'){S.phase='app';startData();route()}
 }
 
 /* ---------- Activity (admin) ---------- */
@@ -1179,6 +1220,7 @@ document.addEventListener('click',async e=>{
   switch(a){
     case 'menu':m.classList.toggle('open');break;
     case 'signOut':signOut();break;
+    case 'forgot':forgotPassword(($('#loginEmail')||{}).value);break;
     case 'myPw':m&&m.classList.remove('open');dlgMyPw();break;
     case 'new':{const pref=S.route==='undep'?'deposit':S.route==='unrel'?'cheque':null;dlgEntry(null,pref&&kindAllowed(pref)?pref:['cheque','deposit','debit'].find(kindAllowed));break}
     case 'edit':if(e.target.closest('input,button:not([data-act=edit])'))return;dlgEntry(id);break;
@@ -1252,25 +1294,31 @@ document.addEventListener('submit',async e=>{
   const btns=form.querySelectorAll('button');btns.forEach(b=>b.disabled=true);
   try{
     switch(form.id){
-      case 'fLogin':S.loginNote='';S.loginUser=f.username;try{await signIn(f.username,f.pw)}catch(err){S.loginNote=err.message;render()}break;
+      case 'fLogin':S.loginNote='';S.loginUser=f.email;try{await signIn(f.email,f.pw)}catch(err){S.loginNote=err.message;render()}break;
       case 'fSetup':{
+        const email=String(f.email||'').trim().toLowerCase();S.loginUser=email;
+        if(!isEmail(email)){toast('Enter a valid email address.',true);break}
         if(f.pw.length<8){toast('Use at least 8 characters.',true);break}
         if(f.pw!==f.pw2){toast('The two passwords do not match.',true);break}
+        if(!(await setupNeeded())){S.phase='login';render();toast('Setup is already done. Please sign in.');break}
+        S.settingUp=true;let au=null;
         try{
-          if(await adminExists()){S.phase='login';render();toast('An administrator already exists. Please sign in.');break}
-          const id=userId(f.username);if(!id){toast('Enter a username.',true);break}
-          const hs=await makeHash(f.pw);
-          await Store.set(C.users+'/'+id,{username:f.username.trim(),name:f.name.trim()||'Administrator',role:'ADMIN',banks:null,active:true,must_change:false,...hs,created_at:nowISO(),created_by:'setup',pw_set_at:nowISO(),pw_set_by:'setup'});
-          await Store.set(C.settings+'/main',{org:'TS Laundry'}).catch(()=>{});
-          S.phase='login';render();await signIn(f.username,f.pw);
-        }catch(err){toast(errMsg(err),true)}
+          try{au=await Auth.create(email,f.pw)}
+          catch(err){if(!String(err.code||'').includes('email-already-in-use'))throw err;
+            try{au=await Auth.signIn(email,f.pw)}catch(e2){throw new Error('That email already has a login with a different password. Use another email, or use "Forgot password" on the sign-in screen first.')}}
+          await Store.tx(async t=>{
+            t.set(C.users+'/'+au.uid,{email,name:(f.name||'').trim()||'Administrator',role:'ADMIN',banks:null,tabs:null,active:true,must_change:false,created_at:nowISO(),created_by:'setup'});
+            t.set(C.settings+'/admin_lock',{uid:au.uid,at:nowISO()});
+          });
+          S.settingUp=false;S.justSignedIn=true;onAuth(au);
+        }catch(err){S.settingUp=false;if(au)await Auth.signOut().catch(()=>{});S.loginNote=err.code?authMsg(err):err.message;showLogin()}
         break}
       case 'fMust':await setOwnPassword(f.pw,f.pw2,null);break;
       case 'fMyPw':await setOwnPassword(f.pw,f.pw2,f.cur);break;
       case 'fEntry':await saveEntry(f,e.submitter&&e.submitter.name==='again');break;
       case 'fBankAcct':await saveBank(f);break;
       case 'fUser':await saveUser(f);break;
-      case 'fReset':await saveReset(f);break;
+      case 'fReset':await saveReset();break;
       case 'fList_customers':case 'fList_particulars':await listAdd(form.dataset.list,f.v);form.reset();break;
       case 'fOrg':try{await Store.set(C.settings+'/main',{...S.settings,org:(f.org||'').trim()});logAudit('SETTINGS',`Company name set to ${(f.org||'').trim()}`);toast('Saved.')}catch(err){toast(errMsg(err),true)}break;
     }
@@ -1278,12 +1326,10 @@ document.addEventListener('submit',async e=>{
 });
 
 /* ================= Start ================= */
-(async function boot(){
-  try{Store=DEMO?makeLocal():makeRemote()}catch(e){$('#app').innerHTML=`<div class="login"><div class="panel"><h1>Cannot start</h1><p>${h(errMsg(e))}</p><p class="muted">Check the internet connection and reload.</p></div></div>`;return}
-  if(await resume())return;
-  S.phase='login';
-  try{if(!(await adminExists()))S.phase='setup'}catch(e){S.loginNote=errMsg(e)}
-  render();
+(function boot(){
+  try{Store=DEMO?makeLocal():makeRemote();Auth=DEMO?makeLocalAuth():makeRemoteAuth()}
+  catch(e){$('#app').innerHTML=`<div class="login"><div class="panel"><h1>Cannot start</h1><p>${h(errMsg(e))}</p><p class="muted">Check the internet connection and reload.</p></div></div>`;return}
+  Auth.onChange(onAuth);
 })();
 </script>
 </body>
