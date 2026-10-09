@@ -134,7 +134,7 @@ async function saveRow(c){const s=SCH[c],d={};for(const[k,,t]of s.f){const v=val
   else{d.ts=Date.now();if(c==='accounts')d.order=d.ts;await db.collection(c).add(d);log('Added '+s.t,desc(c,d))}
   resetForm(c);msg('')}catch(e){msg('Could not save: '+(e.code||e.message))}}
 async function login(){const u=val('lu').toLowerCase(),p=$('#lp').value;if(!u||!p)return msg('Enter your email and password.');
- try{justIn=true;await auth.signInWithEmailAndPassword(u,p);$('#lp').value=''}catch(e){justIn=false;msg(/network/.test(e.code||'')?'Network error. Please try again.':'Invalid email or password.')}}
+ try{justIn=true;await auth.signInWithEmailAndPassword(u,p);$('#lp').value=''}catch(e){justIn=false;const c=e.code||'';msg(['auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-email'].includes(c)?'Invalid email or password.':c==='auth/operation-not-allowed'?'Email/Password sign-in is not turned on in Firebase Authentication.':'Sign-in failed ('+(c||e.message)+').')}}
 function enter(usr,fresh){me=usr;try{sessionStorage.setItem('ct_u',usr.username)}catch(e){}
  msg('');if(fresh)log('Signed in');build();$('#login').hidden=true;$('#app').hidden=false;
  $('#who').textContent=`${me.name||me.username} (${me.role})`;
